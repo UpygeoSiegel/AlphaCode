@@ -88,7 +88,7 @@ export default function PreviewPanel({ code }: PreviewPanelProps) {
 
         {questions.length === 0 && !error && !loading && (
           <div className="bg-white border rounded-lg p-12 text-center text-gray-400">
-            Click "Regenerate" to test your code.
+            Click &quot;Regenerate&quot; to test your code.
           </div>
         )}
 

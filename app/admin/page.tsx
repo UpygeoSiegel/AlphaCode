@@ -6,9 +6,8 @@ import { useState, useEffect } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import Link from "next/link";
-import { getTopics, updateTopic, deleteTopic } from "@/services/topicsService";
+import { getTopics, updateTopic } from "@/services/topicsService";
 import { getTemplatesByTopic, deleteTemplate } from "@/services/templatesService";
-import { deleteQuestionBank } from "@/services/questionBankService";
 import type { Topic, Template } from "@/types";
 
 export default function AdminDashboard() {

@@ -14,7 +14,7 @@ import Link from "next/link";
 export default function AssignmentSessionPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [progress, setProgress] = useState<StudentProgress | null>(null);

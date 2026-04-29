@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { getClassesForStudent, getPostedAssignmentsForStudent } from "@/services/assignmentsService";
 import { getClassByJoinCode, addStudentToClass } from "@/services/classesService";
 import { getProgress } from "@/services/progressService";
