@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getAuth, Auth } from "firebase/auth";
+import { getAuth, Auth, initializeAuth, browserLocalPersistence } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -12,10 +12,19 @@ const firebaseConfig = {
 };
 
 function getFirebaseApp(): FirebaseApp {
-  return getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const apps = getApps();
+  if (apps.length) return apps[0];
+  return initializeApp(firebaseConfig);
 }
 
 export function getClientAuth(): Auth {
+  const apps = getApps();
+  if (typeof window !== "undefined" && apps.length === 0) {
+    const app = initializeApp(firebaseConfig);
+    return initializeAuth(app, {
+      persistence: browserLocalPersistence,
+    });
+  }
   return getAuth(getFirebaseApp());
 }
 

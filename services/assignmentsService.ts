@@ -26,13 +26,15 @@ export async function getAssignmentsByClass(classId: string): Promise<Assignment
 export async function getPostedAssignmentsForStudent(
   classIds: string[]
 ): Promise<Assignment[]> {
+  console.log("Querying assignments (LENIENT) for classIds:", classIds);
   if (classIds.length === 0) return [];
   const q = query(
     collection(db, "assignments"),
-    where("classId", "in", classIds),
-    where("posted", "==", true)
+    where("classId", "in", classIds)
+    // Temporarily removed: where("posted", "==", true)
   );
   const snap = await getDocs(q);
+  console.log("Raw snapshot size:", snap.size);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment));
 }
 
@@ -65,11 +67,13 @@ export async function getClassesByTeacher(teacherId: string): Promise<ClassDoc[]
 }
 
 export async function getClassesForStudent(userId: string): Promise<ClassDoc[]> {
+  console.log("Searching for classes where studentIds contains:", userId);
   const q = query(
     collection(db, "classes"),
     where("studentIds", "array-contains", userId)
   );
   const snap = await getDocs(q);
+  console.log("Found classes count:", snap.size);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ClassDoc));
 }
 

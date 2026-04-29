@@ -5,6 +5,7 @@ import {
   getDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   serverTimestamp,
@@ -44,4 +45,8 @@ export async function updateTopic(
   data: Partial<Omit<Topic, "id">>
 ): Promise<void> {
   await updateDoc(doc(db, "topics", topicId), data);
+}
+
+export async function deleteTopic(topicId: string): Promise<void> {
+  await deleteDoc(doc(db, "topics", topicId));
 }

@@ -14,6 +14,7 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"student" | "teacher">("student");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -24,8 +25,23 @@ export default function RegisterPage() {
 
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
-      await createUser(credential.user.uid, email, displayName, "student");
-      router.push("/student");
+      
+      // 1. Create the user doc in Firestore (client-side)
+      await createUser(credential.user.uid, email, displayName, role);
+
+      // 2. Call the server to set custom claims (the "security" role)
+      const res = await fetch("/api/auth/set-role", {
+        method: "POST",
+        body: JSON.stringify({ uid: credential.user.uid, role }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) throw new Error("Failed to set user role permissions.");
+
+      // 3. Force refresh the token so the new role claim is recognized immediately
+      await credential.user.getIdToken(true);
+
+      router.push(`/${role}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed.");
     } finally {
@@ -61,6 +77,19 @@ export default function RegisterPage() {
               required
               className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Role
+            </label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as "student" | "teacher")}
+              className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+            </select>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">

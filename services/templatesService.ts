@@ -5,6 +5,8 @@ import {
   getDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
+  writeBatch,
   query,
   where,
   serverTimestamp,
@@ -42,4 +44,16 @@ export async function updateTemplate(
     ...data,
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  await deleteDoc(doc(db, "templates", templateId));
+}
+
+export async function deleteTemplatesByTopic(topicId: string): Promise<void> {
+  const q = query(collection(db, "templates"), where("topicId", "==", topicId));
+  const snap = await getDocs(q);
+  const batch = writeBatch(db);
+  snap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
 }
