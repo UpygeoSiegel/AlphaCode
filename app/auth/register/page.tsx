@@ -14,7 +14,7 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"student" | "teacher">("student");
+  const [role, setRole] = useState<"student" | "teacher" | "admin">("student");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -84,11 +84,12 @@ export default function RegisterPage() {
             </label>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as "student" | "teacher")}
+              onChange={(e) => setRole(e.target.value as "student" | "teacher" | "admin")}
               className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             >
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
           <div>
