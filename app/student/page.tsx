@@ -23,6 +23,7 @@ export default function StudentDashboard() {
   const [joinCode, setJoinCode] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinCodeError] = useState<string | null>(null);
+  const [showJoinModal, setShowJoinModal] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/auth/login");
@@ -91,7 +92,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-8 py-4 flex items-center justify-between shadow-sm">
+      <header className="bg-white border-b px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-8">
           <h1 className="text-xl font-black text-indigo-700 uppercase tracking-tighter">Student Portal</h1>
           <nav className="flex gap-4">
@@ -99,6 +100,16 @@ export default function StudentDashboard() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowJoinModal(true)}
+            className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-md active:scale-95 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Join Class
+          </button>
+          <div className="h-8 w-[1px] bg-gray-200 mx-2" />
           <span className="text-xs font-medium text-gray-500">{user?.email}</span>
           <button
             onClick={() => signOut(auth)}
@@ -110,53 +121,6 @@ export default function StudentDashboard() {
       </header>
 
       <main className="p-8 max-w-5xl mx-auto flex flex-col gap-12">
-        {/* Join Class Section */}
-        <section className="bg-indigo-600 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex-1">
-            <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter italic">Join a Class</h2>
-            <p className="text-indigo-100 font-medium">Enter the 6-character code from your teacher to join.</p>
-          </div>
-          <form onSubmit={handleJoinClass} className="flex flex-col gap-2 min-w-[300px]">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder="ABCDEF"
-                maxLength={6}
-                className="flex-1 bg-white/20 border-2 border-white/30 rounded-xl px-4 py-3 text-lg font-black placeholder:text-white/40 focus:bg-white focus:text-indigo-700 outline-none transition-all uppercase text-center tracking-widest"
-              />
-              <button
-                disabled={isJoining || joinCode.length < 6}
-                className="bg-white text-indigo-700 px-6 py-3 rounded-xl font-black hover:bg-indigo-50 transition-all active:scale-95 disabled:opacity-50"
-              >
-                Join
-              </button>
-            </div>
-            {joinError && <p className="text-xs font-bold text-red-200">{joinError}</p>}
-          </form>
-        </section>
-
-        {/* Your Classes Section */}
-        {classes.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Your Classes</h2>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {classes.map(cls => (
-                <div key={cls.id} className="bg-white border-2 border-indigo-100 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <div>
-                    <div className="text-xs font-black text-gray-900 leading-none">{cls.name}</div>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Enrolled</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* Assignments Section */}
         <section>
           <div className="flex items-center justify-between mb-6">
@@ -196,7 +160,9 @@ export default function StudentDashboard() {
                           <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase tracking-wider mb-2 inline-block">
                             {classes.find(c => c.id === asgn.classId)?.name}
                           </span>
-                          <h3 className="text-xl font-black text-gray-900 group-hover:text-indigo-700 transition-colors">Practice Session</h3>
+                          <h3 className="text-xl font-black text-gray-900 group-hover:text-indigo-700 transition-colors">
+                            {asgn.name}
+                          </h3>
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-black text-gray-900">{percent}%</div>
@@ -238,6 +204,51 @@ export default function StudentDashboard() {
           )}
         </section>
       </main>
+
+      {/* Join Class Modal */}
+      {showJoinModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-black text-gray-900 mb-2 uppercase tracking-tighter">Join a Class</h3>
+            <p className="text-gray-500 mb-6 text-sm">Enter the 6-character code from your teacher.</p>
+            
+            <form onSubmit={async (e) => {
+              await handleJoinClass(e);
+              if (!joinError) setShowJoinModal(false);
+            }} className="flex flex-col gap-4">
+              <div>
+                <input
+                  autoFocus
+                  type="text"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  placeholder="ABCDEF"
+                  maxLength={6}
+                  className="w-full border-2 border-gray-100 rounded-xl px-4 py-4 text-2xl font-black focus:border-indigo-600 outline-none transition-all uppercase text-center tracking-widest bg-gray-50"
+                  required
+                />
+              </div>
+              {joinError && <p className="text-xs font-bold text-red-600">{joinError}</p>}
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowJoinModal(false)}
+                  className="flex-1 px-4 py-3 border rounded-xl font-bold text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isJoining || joinCode.length < 6}
+                  className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-black text-sm hover:bg-indigo-700 transition-colors shadow-lg active:scale-95 disabled:opacity-50"
+                >
+                  {isJoining ? "Joining..." : "Join Class"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

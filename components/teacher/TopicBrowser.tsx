@@ -5,11 +5,12 @@ import { getPublishedTopics } from "@/services/topicsService";
 import type { Topic } from "@/types";
 
 interface TopicBrowserProps {
-  selectedTopicId: string | null;
-  onSelect: (topicId: string) => void;
+  selectedTopicIds: string[]; // Changed from selectedTopicId: string | null
+  onToggle: (topicId: string) => void; // Changed from onSelect
+  multiSelect?: boolean;
 }
 
-export default function TopicBrowser({ selectedTopicId, onSelect }: TopicBrowserProps) {
+export default function TopicBrowser({ selectedTopicIds, onToggle, multiSelect = true }: TopicBrowserProps) {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,28 +37,33 @@ export default function TopicBrowser({ selectedTopicId, onSelect }: TopicBrowser
           No published topics available.
         </div>
       ) : (
-        topics.map((topic) => (
-          <button
-            key={topic.id}
-            type="button"
-            onClick={() => onSelect(topic.id)}
-            className={`text-left p-6 rounded-2xl border-2 transition-all ${
-              selectedTopicId === topic.id
-                ? "border-indigo-600 bg-indigo-50 shadow-md ring-1 ring-indigo-600"
-                : "border-gray-100 bg-white hover:border-indigo-200 hover:shadow-sm"
-            }`}
-          >
-            <h4 className={`font-bold mb-1 ${selectedTopicId === topic.id ? "text-indigo-900" : "text-gray-900"}`}>
-              {topic.name}
-            </h4>
-            <p className="text-xs text-gray-500 line-clamp-2">{topic.description}</p>
-            <div className="mt-4 flex items-center gap-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                {topic.templateIds?.length || 0} Skills
-              </span>
-            </div>
-          </button>
-        ))
+        topics.map((topic) => {
+          const isSelected = selectedTopicIds.includes(topic.id);
+          return (
+            <button
+              key={topic.id}
+              type="button"
+              onClick={() => onToggle(topic.id)}
+              className={`text-left p-6 rounded-2xl border-2 transition-all relative ${
+                isSelected
+                  ? "border-indigo-600 bg-indigo-50 shadow-md ring-1 ring-indigo-600"
+                  : "border-gray-100 bg-white hover:border-indigo-200 hover:shadow-sm"
+              }`}
+            >
+              {isSelected && (
+                <div className="absolute top-4 right-4 bg-indigo-600 text-white w-5 h-5 rounded-full flex items-center justify-center shadow-sm animate-in zoom-in duration-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+              <h4 className={`font-bold mb-1 pr-6 ${isSelected ? "text-indigo-900" : "text-gray-900"}`}>
+                {topic.name}
+              </h4>
+              <p className="text-xs text-gray-500 line-clamp-2">{topic.description}</p>
+            </button>
+          );
+        })
       )}
     </div>
   );

@@ -6,8 +6,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAssignment } from "@/services/assignmentsService";
 import { getProgress, initProgress, recordAnswer } from "@/services/progressService";
 import { getQuestionBank } from "@/services/questionBankService";
-import { getTemplatesByTopic } from "@/services/templatesService";
-import type { Assignment, Question, StudentProgress, Template } from "@/types";
+import { getTemplatesByTopic, getTemplate } from "@/services/templatesService";
+import { getTopics } from "@/services/topicsService";
+import type { Assignment, Question, StudentProgress, Template, Topic } from "@/types";
 import QuestionCard from "@/components/shared/QuestionCard";
 import Link from "next/link";
 
@@ -17,10 +18,15 @@ export default function AssignmentSessionPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [allTopicProgress, setAllTopicProgress] = useState<Record<string, StudentProgress>>({});
+  
   const [progress, setProgress] = useState<StudentProgress | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,7 +34,7 @@ export default function AssignmentSessionPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    async function loadSession() {
+    async function loadAssignment() {
       if (!user) return;
       try {
         const asgnId = id as string;
@@ -39,45 +45,101 @@ export default function AssignmentSessionPage() {
         }
         setAssignment(asgn);
 
-        // Load progress
-        let prog = await getProgress(user.uid, asgnId);
-        if (!prog) {
-          await initProgress(user.uid, asgnId, asgn.topicId);
-          prog = await getProgress(user.uid, asgnId);
-        }
-        setProgress(prog);
+        // Load all topic data for this assignment
+        const topicsData = await getTopics();
+        const relevantTopics = topicsData.filter(t => asgn.topicIds.includes(t.id));
+        setTopics(relevantTopics);
 
-        // Load templates for live generation (fallback if bank empty)
-        const tmpls = await getTemplatesByTopic(asgn.topicId);
-        setTemplates(tmpls);
+        // Load progress for ALL topics in this assignment to show in selection screen
+        const progMap: Record<string, StudentProgress> = {};
+        await Promise.all(asgn.topicIds.map(async (tId) => {
+          const pathId = asgn.mixedMode ? "mixed" : tId;
+          const p = await getProgress(user.uid, asgnId, pathId);
+          if (p) progMap[tId] = p;
+        }));
+        setAllTopicProgress(progMap);
 
-        // Try to load question bank
-        const bank = await getQuestionBank(asgn.topicId);
-        if (bank.length > 0) {
-          // Pick a random one from bank
-          setCurrentQuestion(bank[Math.floor(Math.random() * bank.length)]);
-        } else if (tmpls.length > 0) {
-          // Generate live
-          generateNextQuestion(tmpls);
-        } else {
-          setError("No questions available for this topic.");
+        if (asgn.mixedMode) {
+          // If mixed, start immediately
+          startTopicSession(asgn, "mixed");
         }
       } catch (err) {
-        console.error("Session error:", err);
-        setError("Failed to load practice session.");
+        console.error("Error loading assignment:", err);
+        setError("Failed to load assignment.");
       } finally {
         setLoading(false);
       }
     }
-    loadSession();
+    loadAssignment();
   }, [id, user]);
 
-  const generateNextQuestion = (availableTemplates: Template[]) => {
+  const startTopicSession = async (asgn: Assignment, topicId: string) => {
+    setSessionLoading(true);
+    setSelectedTopicId(topicId);
     try {
-      const template = availableTemplates[Math.floor(Math.random() * availableTemplates.length)];
+      // 1. Initialize or get progress
+      let prog = await getProgress(user.uid, asgn.id, topicId);
+      if (!prog) {
+        await initProgress(user.uid, asgn.id, topicId, asgn.penalty);
+        prog = await getProgress(user.uid, asgn.id, topicId);
+      }
+      setProgress(prog);
+
+      // 2. Load templates & banks
+      const relevantTopicIds = topicId === "mixed" ? asgn.topicIds : [topicId];
+      
+      const allTmpls: Template[] = [];
+      const allQuestions: Question[] = [];
+
+      await Promise.all(relevantTopicIds.map(async (tId) => {
+        const [tmpls, bank] = await Promise.all([
+          getTemplatesByTopic(tId),
+          getQuestionBank(tId)
+        ]);
+        allTmpls.push(...tmpls);
+        allQuestions.push(...bank);
+      }));
+
+      setTemplates(allTmpls);
+
+      // 3. Pick or generate first question
+      if (allQuestions.length > 0) {
+        setCurrentQuestion(allQuestions[Math.floor(Math.random() * allQuestions.length)]);
+      } else if (allTmpls.length > 0) {
+        generateNextQuestion(allTmpls, asgn);
+      } else {
+        setError("No questions available for this selection.");
+      }
+    } catch (err) {
+      console.error("Session error:", err);
+      setError("Failed to start session.");
+    } finally {
+      setSessionLoading(false);
+    }
+  };
+
+  const generateNextQuestion = (availableTemplates: Template[], asgn: Assignment) => {
+    try {
+      let template: Template | undefined;
+      
+      // Select topic based on weights if mixed, otherwise just use available templates
+      if (asgn.mixedMode && asgn.topicWeights) {
+        const weightedTopicPool: string[] = [];
+        asgn.topicIds.forEach(tId => {
+          const weight = asgn.topicWeights?.[tId] || 1;
+          for (let i = 0; i < weight; i++) weightedTopicPool.push(tId);
+        });
+        const selectedId = weightedTopicPool[Math.floor(Math.random() * weightedTopicPool.length)];
+        const topicTmpls = availableTemplates.filter(t => t.topicId === selectedId);
+        template = topicTmpls[Math.floor(Math.random() * topicTmpls.length)] || availableTemplates[0];
+      } else {
+        template = availableTemplates[Math.floor(Math.random() * availableTemplates.length)];
+      }
+
+      if (!template) return;
+
       const transformedCode = template.code.replace(/export default/, 'const template =') + '; return template;';
       const templateObj = new Function(transformedCode)();
-      
       const q = templateObj.generate();
       const exp = templateObj.explain(q);
       
@@ -92,44 +154,44 @@ export default function AssignmentSessionPage() {
   };
 
   const handleNext = async () => {
-    if (!user || !assignment || !currentQuestion) return;
+    if (!user || !assignment || !currentQuestion || !selectedTopicId) return;
     
-    // Refresh progress from server
-    const latestProg = await getProgress(user.uid, assignment.id);
+    const latestProg = await getProgress(user.uid, assignment.id, selectedTopicId);
     setProgress(latestProg);
 
-    if (latestProg?.completed) {
-      // Done!
-      return;
-    }
-
-    // Load next question
-    const bank = await getQuestionBank(assignment.topicId);
-    if (bank.length > 0) {
-      setCurrentQuestion(bank[Math.floor(Math.random() * bank.length)]);
-    } else {
-      generateNextQuestion(templates);
-    }
+    if (latestProg?.completed) return;
+    generateNextQuestion(templates, assignment);
   };
 
   const handleAnswerSubmit = async (selectedAnswer: string) => {
-    if (!user || !assignment || !currentQuestion) return;
+    if (!user || !assignment || !currentQuestion || !selectedTopicId) return;
 
     const isCorrect = selectedAnswer === currentQuestion.answer;
     
     try {
-      await recordAnswer(user.uid, assignment.id, {
-        questionIndex: currentQuestion.index,
-        selectedAnswer,
-        correct: isCorrect,
-      }, assignment.requiredCorrect);
+      await recordAnswer(
+        user.uid, 
+        assignment.id, 
+        selectedTopicId, 
+        {
+          questionIndex: currentQuestion.index,
+          selectedAnswer,
+          correct: isCorrect,
+        }, 
+        assignment.requiredCorrect, 
+        assignment.penalty
+      );
       
-      // Update local progress state to show UI updates immediately
       if (progress) {
+        const penalty = assignment.penalty || 0;
+        const nextCorrect = isCorrect 
+          ? progress.correctCount + 1 
+          : Math.max(0, progress.correctCount - penalty);
+          
         setProgress({
           ...progress,
-          correctCount: progress.correctCount + (isCorrect ? 1 : 0),
-          completed: (progress.correctCount + (isCorrect ? 1 : 0)) >= assignment.requiredCorrect
+          correctCount: nextCorrect,
+          completed: nextCorrect >= assignment.requiredCorrect
         });
       }
     } catch (err) {
@@ -137,7 +199,7 @@ export default function AssignmentSessionPage() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400 font-bold italic">Initializing practice session...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400 font-bold italic">Loading assignment...</div>;
   
   if (error) return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8">
@@ -146,6 +208,52 @@ export default function AssignmentSessionPage() {
     </div>
   );
 
+  // SELECTION SCREEN
+  if (assignment && !assignment.mixedMode && !selectedTopicId) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <header className="mb-12">
+            <Link href="/student" className="text-sm font-bold text-indigo-600 hover:underline">&larr; Back to Dashboard</Link>
+            <h1 className="text-4xl font-black text-gray-900 mt-2 uppercase tracking-tighter italic">{assignment.name}</h1>
+            <p className="text-gray-500 font-medium">Select a topic to begin practicing. You must master each one individually.</p>
+          </header>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {topics.map(topic => {
+              const prog = allTopicProgress[topic.id];
+              const isCompleted = prog?.completed;
+              const percent = prog ? Math.min(100, Math.round((prog.correctCount / assignment.requiredCorrect) * 100)) : 0;
+
+              return (
+                <button
+                  key={topic.id}
+                  onClick={() => startTopicSession(assignment, topic.id)}
+                  className="bg-white border-2 border-gray-100 rounded-3xl p-8 text-left hover:border-indigo-600 transition-all group shadow-sm hover:shadow-xl"
+                >
+                  <div className="flex justify-between items-start mb-6">
+                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {isCompleted ? 'Mastered ✓' : 'In Progress'}
+                    </div>
+                    <div className="text-2xl font-black text-gray-900">{percent}%</div>
+                  </div>
+                  <h3 className="text-xl font-black text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors">{topic.name}</h3>
+                  <p className="text-sm text-gray-400 mb-8 line-clamp-2">{topic.description}</p>
+                  
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full transition-all duration-1000 ${isCompleted ? 'bg-green-500' : 'bg-indigo-600'}`} style={{ width: `${percent}%` }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionLoading) return <div className="min-h-screen flex items-center justify-center text-gray-400 font-bold italic animate-pulse">Starting session...</div>;
+
   const percent = progress ? Math.min(100, Math.round((progress.correctCount / (assignment?.requiredCorrect || 1)) * 100)) : 0;
 
   return (
@@ -153,8 +261,18 @@ export default function AssignmentSessionPage() {
       {/* Session Header */}
       <div className="w-full max-w-2xl flex justify-between items-end mb-8">
         <div>
-          <Link href="/student" className="text-xs font-black text-indigo-600 uppercase tracking-widest hover:underline">&larr; Quit Session</Link>
-          <h1 className="text-2xl font-black text-gray-900 mt-1 uppercase tracking-tighter italic">Practice Mode</h1>
+          <button 
+            onClick={() => {
+              if (assignment?.mixedMode) router.push("/student");
+              else setSelectedTopicId(null);
+            }} 
+            className="text-xs font-black text-indigo-600 uppercase tracking-widest hover:underline"
+          >
+            &larr; {assignment?.mixedMode ? "Quit Session" : "Back to Topics"}
+          </button>
+          <h1 className="text-2xl font-black text-gray-900 mt-1 uppercase tracking-tighter italic">
+            {assignment?.mixedMode ? assignment.name : topics.find(t => t.id === selectedTopicId)?.name}
+          </h1>
         </div>
         <div className="text-right">
           <div className="text-3xl font-black text-indigo-700 leading-none">{percent}%</div>
@@ -168,24 +286,29 @@ export default function AssignmentSessionPage() {
           className="h-full bg-indigo-600 rounded-full transition-all duration-1000 ease-out" 
           style={{ width: `${percent}%` }}
         />
-        {/* Segment markers */}
         {Array.from({ length: (assignment?.requiredCorrect || 1) - 1 }).map((_, i) => (
-          <div 
-            key={i} 
-            className="absolute top-0 bottom-0 w-px bg-gray-100" 
-            style={{ left: `${((i + 1) / (assignment?.requiredCorrect || 1)) * 100}%` }}
-          />
+          <div key={i} className="absolute top-0 bottom-0 w-px bg-gray-100" style={{ left: `${((i + 1) / (assignment?.requiredCorrect || 1)) * 100}%` }} />
         ))}
       </div>
 
       {progress?.completed ? (
         <div className="w-full max-w-2xl bg-white border rounded-3xl p-12 text-center shadow-xl animate-in zoom-in-95 duration-500">
           <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✓</div>
-          <h2 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tighter">Mastery Achieved!</h2>
-          <p className="text-gray-500 mb-8 font-medium text-lg">You have successfully completed this practice session.</p>
-          <Link href="/student" className="inline-block bg-indigo-600 text-white px-12 py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95">
-            Return to Dashboard
-          </Link>
+          <h2 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tighter">Topic Mastered!</h2>
+          <p className="text-gray-500 mb-8 font-medium text-lg">You have successfully achieved mastery in this section.</p>
+          <button 
+            onClick={() => {
+              if (assignment?.mixedMode) router.push("/student");
+              else {
+                setSelectedTopicId(null);
+                // Refresh list progress
+                window.location.reload(); 
+              }
+            }}
+            className="inline-block bg-indigo-600 text-white px-12 py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95"
+          >
+            {assignment?.mixedMode ? "Return to Dashboard" : "Choose Another Topic"}
+          </button>
         </div>
       ) : currentQuestion && (
         <QuestionCard 
@@ -196,7 +319,6 @@ export default function AssignmentSessionPage() {
         />
       )}
       
-      {/* Penalty Warning */}
       {!progress?.completed && assignment && assignment.penalty > 0 && (
         <p className="mt-8 text-[10px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1">
           <span className="w-4 h-4 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-[8px]">!</span>

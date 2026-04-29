@@ -17,24 +17,27 @@ import type { StudentProgress, QuestionLogEntry } from "@/types";
 
 export async function getProgress(
   userId: string,
-  assignmentId: string
+  assignmentId: string,
+  topicId: string = "default"
 ): Promise<StudentProgress | null> {
-  const snap = await getDoc(doc(db, "studentProgress", userId, assignmentId, "data"));
+  const snap = await getDoc(doc(db, "studentProgress", userId, assignmentId, topicId));
   return snap.exists() ? (snap.data() as StudentProgress) : null;
 }
 
 export async function initProgress(
   userId: string,
   assignmentId: string,
-  topicId: string
+  topicId: string,
+  penalty: number = 0
 ): Promise<void> {
-  await setDoc(doc(db, "studentProgress", userId, assignmentId, "data"), {
+  await setDoc(doc(db, "studentProgress", userId, assignmentId, topicId), {
     userId,
     assignmentId,
     topicId,
     questionsAnswered: 0,
     correctCount: 0,
     incorrectCount: 0,
+    penalty,
     completed: false,
     completedAt: null,
     lastActivityAt: serverTimestamp(),
@@ -45,16 +48,27 @@ export async function initProgress(
 export async function recordAnswer(
   userId: string,
   assignmentId: string,
+  topicId: string,
   entry: Omit<QuestionLogEntry, "answeredAt">,
-  requiredCorrect: number
+  requiredCorrect: number,
+  penalty: number = 0
 ): Promise<void> {
-  const ref = doc(db, "studentProgress", userId, assignmentId, "data");
+  const ref = doc(db, "studentProgress", userId, assignmentId, topicId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
 
   const current = snap.data() as StudentProgress;
-  const newCorrect = current.correctCount + (entry.correct ? 1 : 0);
-  const newIncorrect = current.incorrectCount + (entry.correct ? 0 : 1);
+  let newCorrect = current.correctCount;
+  let newIncorrect = current.incorrectCount;
+
+  if (entry.correct) {
+    newCorrect += 1;
+  } else {
+    newIncorrect += 1;
+    // Penalty logic: subtract from correctCount but don't go below 0
+    newCorrect = Math.max(0, newCorrect - penalty);
+  }
+  
   const completed = newCorrect >= requiredCorrect;
 
   await updateDoc(ref, {
@@ -64,7 +78,7 @@ export async function recordAnswer(
     completed,
     completedAt: completed ? serverTimestamp() : null,
     lastActivityAt: serverTimestamp(),
-    questionLog: arrayUnion({ ...entry, answeredAt: serverTimestamp() }),
+    questionLog: arrayUnion({ ...entry, answeredAt: new Date() }),
   });
 }
 

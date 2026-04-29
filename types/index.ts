@@ -18,8 +18,8 @@ export interface Topic {
   createdBy: string;
   createdAt: Timestamp;
   published: boolean;
-  templateIds: string[];
-  weights: Record<string, number>;
+  templateId: string;
+
   bankSize: 125;
   bankGeneratedAt: Timestamp | null;
 }
@@ -65,7 +65,9 @@ export interface Assignment {
   name: string;
   classId: string;
   teacherId: string;
-  topicId: string;
+  topicIds: string[];
+  topicWeights?: Record<string, number> | null; // Weights for each topicId (e.g. { topicId1: 1, topicId2: 2 })
+  mixedMode: boolean;
   requiredCorrect: number;
   penalty: number;
   dueDate: Timestamp;
@@ -83,10 +85,11 @@ export interface QuestionLogEntry {
 export interface StudentProgress {
   userId: string;
   assignmentId: string;
-  topicId: string;
+  topicId: string;           // If mixed, can be "mixed" or the first topic. If separate, specific topicId.
   questionsAnswered: number;
   correctCount: number;
   incorrectCount: number;
+  penalty?: number;
   completed: boolean;
   completedAt: Timestamp | null;
   lastActivityAt: Timestamp;

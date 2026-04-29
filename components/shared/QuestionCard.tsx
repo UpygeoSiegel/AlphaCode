@@ -18,7 +18,12 @@ export default function QuestionCard({ question, onNext, onAnswer, isLast }: Que
 
   // Combine and shuffle answers - memoized so it only reshuffles when the question identity changes
   const allChoices = useMemo(() => {
-    return [question.answer, ...question.distractors].sort(() => Math.random() - 0.5);
+    // 1. Start with the correct answer
+    // 2. Filter distractors to remove any that match the correct answer
+    // 3. Take only unique values from the remaining distractors
+    // 4. Combine and shuffle
+    const uniqueDistractors = Array.from(new Set(question.distractors.filter(d => d !== question.answer)));
+    return [question.answer, ...uniqueDistractors].sort(() => Math.random() - 0.5);
   }, [question.prompt, question.answer, question.distractors]);
 
   const isCorrect = selectedAnswer === question.answer;
