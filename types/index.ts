@@ -19,6 +19,7 @@ export interface Topic {
   createdAt: Timestamp;
   published: boolean;
   templateId: string;
+  cspCategory?: string;
 
   bankSize: 125;
   bankGeneratedAt: Timestamp | null;

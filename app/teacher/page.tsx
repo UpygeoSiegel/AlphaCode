@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getPublishedTopics } from "@/services/topicsService";
+import AccordionTopicList from "@/components/shared/AccordionTopicList";
 import type { Topic } from "@/types";
 import Link from "next/link";
 
@@ -20,20 +21,12 @@ export default function TeacherDashboard() {
     if (!authLoading && role && role !== "teacher") router.push(`/${role}`);
   }, [user, role, authLoading, router]);
 
-  async function loadData() {
-    if (!user) return;
-    try {
-      const topicsData = await getPublishedTopics();
-      setTopics(topicsData);
-    } catch (err) {
-      console.error("Error loading data:", err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    loadData();
+    if (!user) return;
+    getPublishedTopics()
+      .then(setTopics)
+      .catch((err) => console.error("Error loading topics:", err))
+      .finally(() => setLoading(false));
   }, [user]);
 
   if (authLoading) return <div className="p-8">Loading...</div>;
@@ -70,44 +63,31 @@ export default function TeacherDashboard() {
         </div>
       </header>
 
-      <main className="p-8 max-w-7xl mx-auto space-y-12">
-        {/* Topics Library Section */}
+      <main className="p-8 max-w-5xl mx-auto space-y-12">
         <section>
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Topics Library</h2>
-              <p className="text-sm text-gray-500 font-medium">Browse available practice modules for your assignments.</p>
+              <p className="text-sm text-gray-500 font-medium">
+                Browse available practice modules — click a topic to expand, then preview or assign.
+              </p>
             </div>
+            <Link
+              href="/teacher/assignments/new"
+              className="text-sm font-bold text-indigo-600 hover:text-indigo-800"
+            >
+              Assign a Topic &rarr;
+            </Link>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="flex flex-col gap-3">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-32 bg-gray-100 rounded-3xl animate-pulse" />
+                <div key={i} className="h-16 bg-gray-100 rounded-2xl animate-pulse" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {topics.map((topic) => (
-                <div key={topic.id} className="bg-white border rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                  <div className="mb-4">
-                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                      {topic.tier}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-black text-gray-900 mb-2 leading-tight">{topic.name}</h3>
-                  <p className="text-xs text-gray-500 line-clamp-3 mb-6 flex-grow">{topic.description}</p>
-                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-50">
-                    <Link
-                      href={`/teacher/assignments/new?topicId=${topic.id}`}
-                      className="text-xs font-black text-indigo-600 hover:text-indigo-800"
-                    >
-                      Assign Topic &rarr;
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <AccordionTopicList topics={topics} mode="teacher" />
           )}
         </section>
       </main>

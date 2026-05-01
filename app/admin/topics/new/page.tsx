@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { createTopic, updateTopic } from "@/services/topicsService";
 import { createTemplate } from "@/services/templatesService";
 import TemplateSandbox from "@/components/admin/TemplateSandbox";
+import { CSP_CATEGORIES } from "@/lib/cspCategories";
 import Link from "next/link";
 
 const DEFAULT_CODE = `export default {
@@ -44,11 +45,11 @@ export default function NewTopicPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [cspCategory, setCspCategory] = useState("");
   const [code, setCode] = useState(DEFAULT_CODE);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Ensure only admins can access this page
   useEffect(() => {
     if (!authLoading && !user) router.push("/auth/login");
     if (!authLoading && role && role !== "admin") router.push(`/${role}`);
@@ -75,6 +76,7 @@ export default function NewTopicPage() {
         published: false,
         templateId: "",
         bankSize: 125,
+        ...(cspCategory ? { cspCategory } : {}),
       });
 
       const templateId = await createTemplate({
@@ -109,7 +111,7 @@ export default function NewTopicPage() {
         <p className="text-gray-500">Name your topic, then write the question generation code.</p>
       </header>
 
-      <div className="bg-white border rounded-xl p-6 shadow-sm mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="bg-white border rounded-xl p-6 shadow-sm mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">Topic Name</label>
           <input
@@ -129,6 +131,21 @@ export default function NewTopicPage() {
             placeholder="What concept does this topic cover?"
             className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
           />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Big Idea 3 Topic</label>
+          <select
+            value={cspCategory}
+            onChange={(e) => setCspCategory(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+          >
+            <option value="">— Select a topic —</option>
+            {CSP_CATEGORIES.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
