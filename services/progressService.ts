@@ -58,21 +58,25 @@ export async function recordAnswer(
   if (!snap.exists()) return;
 
   const current = snap.data() as StudentProgress;
-  let newCorrect = current.correctCount;
-  let newIncorrect = current.incorrectCount;
+  const currentCorrect = Number(current.correctCount) || 0;
+  const currentIncorrect = Number(current.incorrectCount) || 0;
+  const currentAnswered = Number(current.questionsAnswered) || 0;
+
+  let newCorrect = currentCorrect;
+  let newIncorrect = currentIncorrect;
 
   if (entry.correct) {
     newCorrect += 1;
   } else {
     newIncorrect += 1;
     // Penalty logic: subtract from correctCount but don't go below 0
-    newCorrect = Math.max(0, newCorrect - penalty);
+    newCorrect = Math.max(0, newCorrect - (Number(penalty) || 0));
   }
   
-  const completed = newCorrect >= requiredCorrect;
+  const completed = newCorrect >= Number(requiredCorrect);
 
   await updateDoc(ref, {
-    questionsAnswered: current.questionsAnswered + 1,
+    questionsAnswered: currentAnswered + 1,
     correctCount: newCorrect,
     incorrectCount: newIncorrect,
     completed,
@@ -106,7 +110,14 @@ export function subscribeToProgressForAssignment(
   });
 }
 
-export async function getProgressForStudent(userId: string): Promise<StudentProgress[]> {
-  const snap = await getDocs(collection(db, "studentProgress", userId));
-  return snap.docs.map((d) => d.data() as StudentProgress);
+export async function getProgressForStudentInAssignment(
+  userId: string,
+  assignmentId: string
+): Promise<StudentProgress[]> {
+  // Query all subcollections/documents for this student/assignment
+  // Structure: studentProgress/{userId}/{assignmentId}/{topicId}
+  const collRef = collection(db, "studentProgress", userId, assignmentId);
+  const snap = await getDocs(collRef);
+  return snap.docs.map(d => d.data() as StudentProgress);
 }
+

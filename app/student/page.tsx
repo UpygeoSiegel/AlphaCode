@@ -7,7 +7,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getClassesForStudent, getPostedAssignmentsForStudent } from "@/services/assignmentsService";
 import { getClassByJoinCode, addStudentToClass } from "@/services/classesService";
-import { getProgress } from "@/services/progressService";
+import { getProgressForStudentInAssignment } from "@/services/progressService";
 import type { Assignment, ClassDoc, StudentProgress } from "@/types";
 import Link from "next/link";
 
@@ -47,8 +47,24 @@ export default function StudentDashboard() {
 
         const progressMap: Record<string, StudentProgress> = {};
         await Promise.all(assignmentsData.map(async (asgn) => {
-          const p = await getProgress(user.uid, asgn.id);
-          if (p) progressMap[asgn.id] = p;
+          const progs = await getProgressForStudentInAssignment(user.uid, asgn.id);
+          if (progs.length > 0) {
+            // Aggregate progress across all topics for this assignment
+            const aggregated: StudentProgress = {
+              ...progs[0],
+              correctCount: progs.reduce((acc, p) => acc + (Number(p.correctCount) || 0), 0),
+              questionsAnswered: progs.reduce((acc, p) => acc + (Number(p.questionsAnswered) || 0), 0),
+              completed: progs.every(p => p.completed) && progs.length >= asgn.topicIds.length
+            };
+            
+            if (asgn.mixedMode) {
+              const mixed = progs.find(p => p.topicId === "mixed");
+              if (mixed) progressMap[asgn.id] = mixed;
+              else progressMap[asgn.id] = aggregated;
+            } else {
+              progressMap[asgn.id] = aggregated;
+            }
+          }
         }));
         setProgress(progressMap);
       } else {

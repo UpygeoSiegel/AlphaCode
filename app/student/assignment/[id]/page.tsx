@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAssignment } from "@/services/assignmentsService";
 import { getProgress, initProgress, recordAnswer } from "@/services/progressService";
 import { getQuestionBank } from "@/services/questionBankService";
-import { getTemplatesByTopic, getTemplate } from "@/services/templatesService";
+import { getTemplatesByTopic } from "@/services/templatesService";
 import { getTopics } from "@/services/topicsService";
 import type { Assignment, Question, StudentProgress, Template, Topic } from "@/types";
 import QuestionCard from "@/components/shared/QuestionCard";
@@ -156,19 +156,34 @@ export default function AssignmentSessionPage() {
   const handleNext = async () => {
     if (!user || !assignment || !currentQuestion || !selectedTopicId) return;
     
-    const latestProg = await getProgress(user.uid, assignment.id, selectedTopicId);
-    setProgress(latestProg);
-
-    if (latestProg?.completed) return;
+    // Use local state instead of re-fetching to avoid race conditions with server updates
+    if (progress?.completed) return;
     generateNextQuestion(templates, assignment);
   };
 
   const handleAnswerSubmit = async (selectedAnswer: string) => {
     if (!user || !assignment || !currentQuestion || !selectedTopicId) return;
 
-    const isCorrect = selectedAnswer === currentQuestion.answer;
+    // Use robust comparison to handle potential type mismatches or hidden whitespace
+    const isCorrect = String(selectedAnswer).trim() === String(currentQuestion.answer).trim();
     
     try {
+      // 1. Update local state immediately for snappy UI
+      if (progress) {
+        const penalty = Number(assignment.penalty) || 0;
+        const currentCorrect = Number(progress.correctCount) || 0;
+        const nextCorrect = isCorrect 
+          ? currentCorrect + 1 
+          : Math.max(0, currentCorrect - penalty);
+          
+        setProgress({
+          ...progress,
+          correctCount: nextCorrect,
+          completed: nextCorrect >= Number(assignment.requiredCorrect)
+        });
+      }
+
+      // 2. Record in background
       await recordAnswer(
         user.uid, 
         assignment.id, 
@@ -181,19 +196,6 @@ export default function AssignmentSessionPage() {
         assignment.requiredCorrect, 
         assignment.penalty
       );
-      
-      if (progress) {
-        const penalty = assignment.penalty || 0;
-        const nextCorrect = isCorrect 
-          ? progress.correctCount + 1 
-          : Math.max(0, progress.correctCount - penalty);
-          
-        setProgress({
-          ...progress,
-          correctCount: nextCorrect,
-          completed: nextCorrect >= assignment.requiredCorrect
-        });
-      }
     } catch (err) {
       console.error("Error recording answer:", err);
     }
@@ -223,7 +225,7 @@ export default function AssignmentSessionPage() {
             {topics.map(topic => {
               const prog = allTopicProgress[topic.id];
               const isCompleted = prog?.completed;
-              const percent = prog ? Math.min(100, Math.round((prog.correctCount / assignment.requiredCorrect) * 100)) : 0;
+              const percent = prog ? Math.min(100, Math.round((prog.correctCount / (assignment.requiredCorrect || 1)) * 100)) : 0;
 
               return (
                 <button

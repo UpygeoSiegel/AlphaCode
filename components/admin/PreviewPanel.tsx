@@ -7,6 +7,7 @@ import CodeRenderer from "../shared/CodeRenderer";
 interface ValidationFailure {
   index: number;
   issues: string[];
+  failedData?: Question & { explanation: any };
 }
 
 interface ValidationResult {
@@ -41,31 +42,42 @@ const WORKER_SRC = `
       issues.push('answer is an invalid value: "' + q.answer + '"');
     }
 
+    // Type
+    if (q.type !== "multiple-choice" && q.type !== "free-response") {
+      issues.push("invalid type: " + q.type + ' (expected "multiple-choice" or "free-response")');
+    }
+
     // Distractors
-    if (!Array.isArray(q.distractors)) {
-      issues.push("distractors is not an array");
-    } else {
-      if (q.distractors.length !== 3) {
-        issues.push("expected 3 distractors, got " + q.distractors.length);
-      }
-
-      q.distractors.forEach(function(d, i) {
-        if (typeof d !== "string") {
-          issues.push("distractor " + (i + 1) + " is not a string");
-        } else if (d.trim() === "") {
-          issues.push("distractor " + (i + 1) + " is an empty string");
-        } else if (d === "NaN" || d === "Infinity" || d === "-Infinity") {
-          issues.push('distractor ' + (i + 1) + ' is an invalid value: "' + d + '"');
+    if (q.type === "multiple-choice") {
+      if (!Array.isArray(q.distractors)) {
+        issues.push("distractors is not an array");
+      } else {
+        if (q.distractors.length !== 3) {
+          issues.push("expected 3 distractors for multiple-choice, got " + q.distractors.length);
         }
-      });
 
-      var distSet = new Set(q.distractors);
-      if (distSet.size !== q.distractors.length) {
-        issues.push("distractors contain duplicates: [" + q.distractors.join(", ") + "]");
+        q.distractors.forEach(function(d, i) {
+          if (typeof d !== "string") {
+            issues.push("distractor " + (i + 1) + " is not a string");
+          } else if (d.trim() === "") {
+            issues.push("distractor " + (i + 1) + " is an empty string");
+          } else if (d === "NaN" || d === "Infinity" || d === "-Infinity") {
+            issues.push('distractor ' + (i + 1) + ' is an invalid value: "' + d + '"');
+          }
+        });
+
+        var distSet = new Set(q.distractors);
+        if (distSet.size !== q.distractors.length) {
+          issues.push("distractors contain duplicates: [" + q.distractors.join(", ") + "]");
+        }
+
+        if (q.answer !== undefined && q.distractors.includes(q.answer)) {
+          issues.push('correct answer "' + q.answer + '" also appears in distractors');
+        }
       }
-
-      if (q.answer !== undefined && q.distractors.includes(q.answer)) {
-        issues.push('correct answer "' + q.answer + '" also appears in distractors');
+    } else if (q.type === "free-response") {
+      if (q.distractors && Array.isArray(q.distractors) && q.distractors.length > 0) {
+        issues.push("free-response questions should not have distractors");
       }
     }
 
@@ -89,23 +101,40 @@ const WORKER_SRC = `
       // Validation runs
       var total = ${VALIDATION_RUNS};
       var failures = [];
+      var seenPrompts = new Map();
+
       for (var j = 0; j < total; j++) {
         var vq;
+        var vexp;
         try {
           vq = template.generate();
         } catch(err) {
           failures.push({ index: j, issues: ["generate() threw: " + err.message] });
           continue;
         }
+
+        var issues = validateQuestion(vq, j);
+
+        // Check for duplicate prompts across all runs
+        if (vq.prompt && seenPrompts.has(vq.prompt)) {
+          issues.push("Duplicate question detected: this exact prompt was already generated in run #" + (seenPrompts.get(vq.prompt) + 1));
+        } else {
+          seenPrompts.set(vq.prompt, j);
+        }
+
         try {
-          template.explain(vq);
+          vexp = template.explain(vq);
         } catch(err) {
-          failures.push({ index: j, issues: ["explain() threw: " + err.message] });
+          failures.push({ index: j, issues: issues.concat(["explain() threw: " + err.message]), failedData: Object.assign({}, vq, { index: j }) });
           continue;
         }
-        var issues = validateQuestion(vq, j);
+        
         if (issues.length > 0) {
-          failures.push({ index: j, issues: issues });
+          failures.push({ 
+            index: j, 
+            issues: issues, 
+            failedData: Object.assign({}, vq, { explanation: vexp, index: j }) 
+          });
         }
       }
 
@@ -123,6 +152,7 @@ const WORKER_SRC = `
 export default function PreviewPanel({ code }: { code: string }) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [selectedFailure, setSelectedFailure] = useState<ValidationFailure | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const workerRef = useRef<Worker | null>(null);
@@ -135,10 +165,12 @@ export default function PreviewPanel({ code }: { code: string }) {
       if (e.data.type === "SUCCESS") {
         setQuestions(e.data.questions);
         setValidation(e.data.validation);
+        setSelectedFailure(null);
         setError(null);
       } else {
         setError(e.data.message);
         setValidation(null);
+        setSelectedFailure(null);
       }
       setLoading(false);
     };
@@ -156,22 +188,42 @@ export default function PreviewPanel({ code }: { code: string }) {
     return () => clearTimeout(timer);
   }, [code]);
 
+  const displayQuestions = selectedFailure?.failedData 
+    ? [selectedFailure.failedData as Question] 
+    : questions;
+
   return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-700">Live Preview</h2>
-        <button
-          onClick={runPreview}
-          disabled={loading}
-          className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded hover:bg-indigo-100 transition-colors disabled:opacity-50"
-        >
-          {loading ? "Running…" : "Regenerate"}
-        </button>
+        <h2 className="text-lg font-semibold text-gray-700">
+          {selectedFailure ? "Debug View (Failed Question)" : "Live Preview"}
+        </h2>
+        <div className="flex gap-2">
+          {selectedFailure && (
+            <button
+              onClick={() => setSelectedFailure(null)}
+              className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded hover:bg-gray-200 transition-colors"
+            >
+              Back to Examples
+            </button>
+          )}
+          <button
+            onClick={runPreview}
+            disabled={loading}
+            className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded hover:bg-indigo-100 transition-colors disabled:opacity-50"
+          >
+            {loading ? "Running…" : "Regenerate"}
+          </button>
+        </div>
       </div>
 
       {/* Validation badge */}
       {validation && !error && (
-        <ValidationBadge validation={validation} />
+        <ValidationBadge 
+          validation={validation} 
+          selectedFailureIndex={selectedFailure?.index}
+          onSelectFailure={setSelectedFailure}
+        />
       )}
 
       <div className="flex-grow overflow-y-auto pr-2 flex flex-col gap-6 pb-8">
@@ -181,56 +233,100 @@ export default function PreviewPanel({ code }: { code: string }) {
           </div>
         )}
 
-        {questions.length === 0 && !error && !loading && (
+        {displayQuestions.length === 0 && !error && !loading && (
           <div className="bg-white border rounded-lg p-12 text-center text-gray-400">
             Click &quot;Regenerate&quot; to test your code.
           </div>
         )}
 
-        {questions.map((q, i) => (
-          <div key={i} className="bg-white border rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-gray-50 px-4 py-2 border-b flex justify-between items-center">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Example {i + 1}</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">
-                {q.type}
-              </span>
-            </div>
-            <div className="p-6">
-              <div className="text-lg font-medium mb-6">
-                <CodeRenderer html={q.prompt} />
-              </div>
+        {displayQuestions.map((q, i) => {
+          const isFailure = !!selectedFailure;
+          const issues = selectedFailure?.issues || [];
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                {[q.answer, ...q.distractors].sort().map((choice, ci) => (
-                  <div
-                    key={ci}
-                    className={`p-3 border rounded-lg text-sm ${choice === q.answer ? "border-green-200 bg-green-50 text-green-800 font-medium" : "border-gray-200 text-gray-600"}`}
-                  >
-                    {choice} {choice === q.answer && "✓"}
-                  </div>
-                ))}
+          return (
+            <div key={i} className={`bg-white border rounded-xl shadow-sm overflow-hidden ${isFailure ? 'ring-2 ring-red-500' : ''}`}>
+              <div className={`${isFailure ? 'bg-red-50' : 'bg-gray-50'} px-4 py-2 border-b flex justify-between items-center`}>
+                <span className={`text-xs font-bold uppercase tracking-wider ${isFailure ? 'text-red-600' : 'text-gray-400'}`}>
+                  {isFailure ? `FAILURE RUN #${selectedFailure.index + 1}` : `Example ${i + 1}`}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">
+                  {q.type}
+                </span>
               </div>
+              
+              {isFailure && (
+                <div className="bg-red-100 p-4 border-b border-red-200">
+                  <h4 className="text-xs font-black text-red-800 uppercase tracking-widest mb-2">Detected Issues:</h4>
+                  <ul className="list-disc list-inside text-sm text-red-700 font-medium">
+                    {issues.map((issue, idx) => <li key={idx}>{issue}</li>)}
+                  </ul>
+                </div>
+              )}
 
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-sm font-bold text-gray-700 mb-2">Explanation:</h4>
-                <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-3">
-                  {q.explanation.steps.map((step, si) => (
-                    <li key={si}>{step}</li>
-                  ))}
-                </ol>
-                <p className="text-sm font-medium text-indigo-700 border-t pt-2 mt-2 italic">
-                  {q.explanation.summary}
-                </p>
+              <div className="p-6">
+                <div className={`text-lg font-medium mb-6 ${issues.some(iss => iss.includes('prompt')) ? 'text-red-600 underline decoration-wavy' : ''}`}>
+                  <CodeRenderer html={q.prompt} />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                  {[q.answer, ...(Array.isArray(q.distractors) ? q.distractors : [])].sort().map((choice, ci) => {
+                    const isAnswer = choice === q.answer;
+                    const hasIssue = issues.some(iss => 
+                      (isAnswer && iss.toLowerCase().includes('answer')) || 
+                      (!isAnswer && iss.toLowerCase().includes('distractor')) ||
+                      (iss.includes('appears in distractors'))
+                    );
+
+                    return (
+                      <div
+                        key={ci}
+                        className={`p-3 border rounded-lg text-sm transition-colors ${
+                          isAnswer 
+                            ? "border-green-200 bg-green-50 text-green-800 font-medium" 
+                            : "border-gray-200 text-gray-600"
+                        } ${hasIssue ? 'ring-2 ring-red-400 border-red-400 bg-red-50' : ''}`}
+                      >
+                        {choice} {isAnswer && "✓"}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className={`bg-gray-50 rounded-lg p-4 ${issues.some(iss => iss.includes('explain')) ? 'ring-2 ring-red-400 bg-red-50' : ''}`}>
+                  <h4 className="text-sm font-bold text-gray-700 mb-2">Explanation:</h4>
+                  {q.explanation ? (
+                    <>
+                      <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-3">
+                        {q.explanation.steps.map((step: string, si: number) => (
+                          <li key={si}>{step}</li>
+                        ))}
+                      </ol>
+                      <p className="text-sm font-medium text-indigo-700 border-t pt-2 mt-2 italic">
+                        {q.explanation.summary}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-red-500 italic">No explanation data returned.</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function ValidationBadge({ validation }: { validation: ValidationResult }) {
+function ValidationBadge({ 
+  validation, 
+  onSelectFailure, 
+  selectedFailureIndex 
+}: { 
+  validation: ValidationResult; 
+  onSelectFailure: (f: ValidationFailure | null) => void;
+  selectedFailureIndex?: number;
+}) {
   const [expanded, setExpanded] = useState(false);
   const { total, passed, failures } = validation;
   const allPassed = failures.length === 0;
@@ -243,7 +339,7 @@ function ValidationBadge({ validation }: { validation: ValidationResult }) {
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-4 py-3"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-left">
           <span className={`text-lg ${allPassed ? "text-green-600" : "text-amber-500"}`}>
             {allPassed ? "✓" : "⚠"}
           </span>
@@ -261,12 +357,25 @@ function ValidationBadge({ validation }: { validation: ValidationResult }) {
       </button>
 
       {!allPassed && expanded && (
-        <div className="border-t border-amber-200 px-4 py-3 flex flex-col gap-2 max-h-48 overflow-y-auto">
+        <div className="border-t border-amber-200 px-2 py-2 flex flex-col gap-1 max-h-48 overflow-y-auto bg-amber-50/50">
           {failures.map((f, i) => (
-            <div key={i} className="text-xs text-amber-900">
-              <span className="font-bold">Run #{f.index + 1}:</span>{" "}
-              {f.issues.join(" · ")}
-            </div>
+            <button 
+              key={i} 
+              onClick={() => onSelectFailure(f)}
+              className={`text-left px-3 py-2 rounded-lg transition-all border ${
+                selectedFailureIndex === f.index 
+                  ? 'bg-red-100 border-red-300 shadow-sm' 
+                  : 'bg-white border-transparent hover:border-amber-300 hover:bg-white'
+              }`}
+            >
+              <div className="text-xs font-bold text-amber-900 mb-1 flex justify-between">
+                <span>Run #{f.index + 1}</span>
+                {selectedFailureIndex === f.index && <span className="text-[10px] text-red-600 uppercase tracking-widest font-black italic">Debugging...</span>}
+              </div>
+              <div className="text-[10px] text-amber-700 leading-relaxed">
+                {f.issues.join(" · ")}
+              </div>
+            </button>
           ))}
         </div>
       )}
