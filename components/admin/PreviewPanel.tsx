@@ -151,7 +151,7 @@ const WORKER_SRC = `
 
 export default function PreviewPanel({ code }: { code: string }) {
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [_validation, setValidation] = useState<ValidationResult | null>(null);
   const [selectedFailure, setSelectedFailure] = useState<ValidationFailure | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -310,7 +310,7 @@ export default function PreviewPanel({ code }: { code: string }) {
   );
 }
 
-function ValidationBadge({ 
+function _ValidationBadge({ 
   validation, 
   onSelectFailure, 
   selectedFailureIndex 
