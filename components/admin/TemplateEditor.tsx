@@ -23,7 +23,7 @@ export default function TemplateEditor({ code, onChange, onSave, isSaving }: Tem
   useEffect(() => {
     // If it hasn't loaded in 10 seconds, show an error/retry message
     const timer = setTimeout(() => {
-      if (typeof window !== "undefined" && !(window as any).monaco) {
+      if (typeof window !== "undefined" && !(window as unknown as { monaco?: unknown }).monaco) {
         setLoadError(true);
       }
     }, 10000);

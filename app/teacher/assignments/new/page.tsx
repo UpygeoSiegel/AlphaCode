@@ -1,17 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getTeacherClasses } from "@/services/classesService";
 import { createAssignment } from "@/services/assignmentsService";
 import { getPublishedTopics } from "@/services/topicsService";
 import type { ClassDoc, Topic } from "@/types";
-import TopicBrowser from "@/components/teacher/TopicBrowser";
-import Link from "next/link";
+import AccordionTopicList from "@/components/shared/AccordionTopicList";
+import AppShell from "@/components/shared/AppShell";
 import { Timestamp } from "firebase/firestore";
 
-// Component for creating new assignments
 function NewAssignmentContent() {
   const { user, role, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -21,8 +20,12 @@ function NewAssignmentContent() {
 
   const [classes, setClasses] = useState<ClassDoc[]>([]);
   const [selectedClassId, setSelectedClassId] = useState(initialClassId);
-  const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>(initialTopicId ? [initialTopicId] : []);
-  const [topicWeights, setTopicWeights] = useState<Record<string, number>>({});
+  const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>(
+    initialTopicId ? [initialTopicId] : []
+  );
+  const [topicWeights, setTopicWeights] = useState<Record<string, number>>(
+    initialTopicId ? { [initialTopicId]: 1 } : {}
+  );
   const [mixedMode, setMixedMode] = useState(true);
   const [requiredCorrect, setRequiredCorrect] = useState(5);
   const [penalty, setPenalty] = useState(1);
@@ -31,6 +34,8 @@ function NewAssignmentContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [showSkillModal, setShowSkillModal] = useState(false);
+  const [skillSearch, setSkillSearch] = useState("");
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/auth/login");
@@ -43,18 +48,13 @@ function NewAssignmentContent() {
       try {
         const [classesData, topicsData] = await Promise.all([
           getTeacherClasses(user.uid),
-          getPublishedTopics()
+          getPublishedTopics(),
         ]);
-        setClasses(classesData);
+        const activeClasses = classesData.filter((c) => !(c as typeof c & { archived?: boolean }).archived);
+        setClasses(activeClasses);
         setTopics(topicsData);
-        
-        if (!selectedClassId && classesData.length > 0) {
-          setSelectedClassId(classesData[0].id);
-        }
-
-        // Initialize weights for initial topics if not already set
-        if (initialTopicId && Object.keys(topicWeights).length === 0) {
-          setTopicWeights({ [initialTopicId]: 1 });
+        if (!selectedClassId && activeClasses.length > 0) {
+          setSelectedClassId(activeClasses[0].id);
         }
       } catch (err) {
         console.error("Error loading data:", err);
@@ -63,54 +63,48 @@ function NewAssignmentContent() {
       }
     }
     loadData();
-  }, [user]); // Removed unnecessary dependencies to prevent loops
+  }, [user]);
+
+  const filteredTopics = useMemo(() => {
+    const q = skillSearch.trim().toLowerCase();
+    if (!q) return topics;
+    return topics.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.description || "").toLowerCase().includes(q)
+    );
+  }, [topics, skillSearch]);
 
   const handleToggleTopic = (topicId: string) => {
-    setSelectedTopicIds(prev => {
+    setSelectedTopicIds((prev) => {
       const isSelected = prev.includes(topicId);
-      const next = isSelected 
-        ? prev.filter(id => id !== topicId) 
+      const next = isSelected
+        ? prev.filter((id) => id !== topicId)
         : [...prev, topicId];
-      
-      // Update weights
       const nextWeights = { ...topicWeights };
-      if (isSelected) {
-        delete nextWeights[topicId];
-      } else {
-        nextWeights[topicId] = 1;
-      }
+      if (isSelected) delete nextWeights[topicId];
+      else nextWeights[topicId] = 1;
       setTopicWeights(nextWeights);
-      
       return next;
     });
   };
 
   const handleWeightChange = (topicId: string, value: number) => {
-    setTopicWeights(prev => ({
-      ...prev,
-      [topicId]: value
-    }));
+    setTopicWeights((prev) => ({ ...prev, [topicId]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) { alert("You must be logged in."); return; }
+    if (!user) return;
     if (!selectedClassId) { alert("Please select a class."); return; }
-    if (selectedTopicIds.length === 0) { alert("Please select at least one topic."); return; }
+    if (selectedTopicIds.length === 0) { alert("Please add at least one skill."); return; }
     if (!dueDate) { alert("Please select a due date."); return; }
 
     setIsSubmitting(true);
     try {
-      const finalName = assignmentName || (classes.find(c => c.id === selectedClassId)?.name + " - Assignment");
-      
-      console.log("Creating assignment with data:", {
-        name: finalName,
-        classId: selectedClassId,
-        topicIds: selectedTopicIds,
-        mixedMode,
-        requiredCorrect,
-        penalty
-      });
+      const finalName =
+        assignmentName ||
+        classes.find((c) => c.id === selectedClassId)?.name + " - Assignment";
 
       await createAssignment({
         name: finalName,
@@ -133,189 +127,289 @@ function NewAssignmentContent() {
     }
   };
 
-  if (authLoading || loading) return <div className="p-8 text-center text-gray-400">Loading...</div>;
+  if (authLoading || loading) {
+    return <div className="p-8 text-center text-gray-400">Loading...</div>;
+  }
+
+  if (classes.length === 0) {
+    return (
+      <AppShell role="teacher" userEmail={user?.email} title="Create New Assignment">
+        <div className="max-w-md mx-auto mt-16 text-center">
+          <div className="text-5xl mb-4">🏫</div>
+          <h2 className="text-xl font-bold text-dm-navy mb-2">No classes yet</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            You need to create a class before you can make an assignment.
+          </p>
+          <a
+            href="/teacher/classes"
+            className="gradient-brand text-white px-6 py-3 rounded-xl font-bold text-sm inline-block hover:opacity-90 shadow-md shadow-indigo-500/20"
+          >
+            Create a Class →
+          </a>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <header className="mb-8">
-          <Link href="/teacher" className="text-indigo-600 hover:underline text-sm font-bold tracking-tight">
-            &larr; Back to Classes
-          </Link>
-          <h1 className="text-3xl font-black text-gray-900 mt-2 uppercase tracking-tighter">Create New Assignment</h1>
-          <p className="text-gray-500">Pick one or more topics and configure mastery goals.</p>
-        </header>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-8">
-          {/* Step 0: Basic Info */}
-          <section className="bg-white border rounded-2xl p-8 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-              <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
-              Assignment Basics
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <AppShell role="teacher" userEmail={user?.email} title="Create New Assignment">
+      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+        <div className="bg-white border border-dm-border rounded shadow-sm">
+          {/* Basics */}
+          <div className="px-6 py-5 border-b border-dm-border">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-[10px]">Assignment Name (Optional)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Assignment Name
+                </label>
                 <input
                   type="text"
                   value={assignmentName}
                   onChange={(e) => setAssignmentName(e.target.value)}
-                  placeholder="e.g. Weekly Practice #4"
-                  className="w-full border rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
+                  placeholder="e.g. Unit 3 Practice"
+                  className="w-full border border-dm-border rounded px-3 py-2 text-sm focus:border-dm-blue focus:ring-1 focus:ring-dm-blue outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-[10px]">Assign to Class</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Assign To
+                </label>
                 <select
                   value={selectedClassId}
                   onChange={(e) => setSelectedClassId(e.target.value)}
-                  className="w-full border rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
+                  className="w-full border border-dm-border rounded px-3 py-2 text-sm bg-white focus:border-dm-blue focus:ring-1 focus:ring-dm-blue outline-none"
                   required
                 >
                   {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>{cls.name}</option>
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
-          </section>
+          </div>
 
-          {/* Step 1: Select Topics */}
-          <section>
-            <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
-              Select Topics ({selectedTopicIds.length})
-            </h2>
-            <TopicBrowser 
-              selectedTopicIds={selectedTopicIds} 
-              onToggle={handleToggleTopic} 
-            />
-          </section>
+          {/* Skills */}
+          <div className="px-6 py-5 border-b border-dm-border">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-semibold text-gray-700">Skills</label>
+              <button
+                type="button"
+                onClick={() => setShowSkillModal(true)}
+                className="bg-dm-blue hover:bg-dm-blue-dark text-white text-sm font-semibold px-4 py-1.5 rounded transition-colors"
+              >
+                + Add Skill
+              </button>
+            </div>
 
-          {/* Step 2: Configure Mode & Settings */}
-          {selectedTopicIds.length > 0 && (
-            <section className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-white border rounded-2xl p-8 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-                  <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
-                  Assignment Mode
-                </h2>
-                
-                <div className="space-y-4">
-                  <button
-                    type="button"
-                    onClick={() => setMixedMode(true)}
-                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                      mixedMode ? "border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600" : "border-gray-100 bg-white"
-                    }`}
-                  >
-                    <div className="font-bold text-gray-900">Mix Topics Together</div>
-                    <p className="text-[10px] text-gray-500 mt-1">Students get questions from all selected topics in a single pool based on your ratios.</p>
-                  </button>
-
-                  {/* Topic Distribution / Ratios */}
-                  {mixedMode && selectedTopicIds.length > 1 && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100 animate-in fade-in duration-300">
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Topic Distribution (Ratio)</label>
-                      <div className="space-y-3">
-                        {selectedTopicIds.map(topicId => {
-                          const topic = topics.find(t => t.id === topicId);
-                          return (
-                            <div key={topicId} className="flex items-center gap-4">
-                              <span className="flex-1 text-xs font-bold text-gray-700 truncate">{topic?.name}</span>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min="1"
-                                  max="10"
-                                  value={topicWeights[topicId] || 1}
-                                  onChange={(e) => handleWeightChange(topicId, parseInt(e.target.value) || 1)}
-                                  className="w-12 border rounded-lg px-2 py-1 text-xs font-black text-center focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="text-[9px] text-gray-400 mt-3 italic text-center">e.g. 2:1 ratio means twice as many questions from that topic.</p>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setMixedMode(false)}
-                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                      !mixedMode ? "border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600" : "border-gray-100 bg-white"
-                    }`}
-                  >
-                    <div className="font-bold text-gray-900">Separate per Topic</div>
-                    <p className="text-[10px] text-gray-500 mt-1">Students must reach the target correct for each individual topic separately.</p>
-                  </button>
-
-                  <div className="pt-4">
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-[10px]">Due Date</label>
-                    <input
-                      type="datetime-local"
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full border rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
-                      required
-                    />
-                  </div>
-                </div>
+            {selectedTopicIds.length === 0 ? (
+              <div className="border border-dashed border-dm-border rounded p-6 text-center text-sm text-gray-400">
+                No skills added yet. Click &ldquo;+ Add Skill&rdquo; to search the skill library.
               </div>
+            ) : (
+              <table className="w-full text-sm border border-dm-border rounded overflow-hidden">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-dm-border">
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Skill</th>
+                    {mixedMode && selectedTopicIds.length > 1 && (
+                      <th className="px-3 py-2 text-center font-semibold text-gray-600 w-24">
+                        Weight
+                      </th>
+                    )}
+                    <th className="px-3 py-2 w-12" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedTopicIds.map((topicId) => {
+                    const topic = topics.find((t) => t.id === topicId);
+                    return (
+                      <tr key={topicId} className="border-b border-gray-100 last:border-0">
+                        <td className="px-3 py-2 text-gray-800">{topic?.name || topicId}</td>
+                        {mixedMode && selectedTopicIds.length > 1 && (
+                          <td className="px-3 py-2 text-center">
+                            <select
+                              value={topicWeights[topicId] || 1}
+                              onChange={(e) =>
+                                handleWeightChange(topicId, parseInt(e.target.value) || 1)
+                              }
+                              className="border border-dm-border rounded px-2 py-1 text-sm bg-white outline-none focus:border-dm-blue"
+                            >
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                                <option key={n} value={n}>{n}</option>
+                              ))}
+                            </select>
+                          </td>
+                        )}
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTopic(topicId)}
+                            className="text-dm-red hover:text-red-700 font-bold text-base leading-none"
+                            title="Remove skill"
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
 
-              <div className="bg-white border rounded-2xl p-8 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-                  <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
-                  Mastery Settings
-                </h2>
-
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-[10px]">
-                      {mixedMode ? "Total Required Correct" : "Required Correct PER TOPIC"}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={requiredCorrect}
-                      onChange={(e) => setRequiredCorrect(parseInt(e.target.value) || 0)}
-                      className="w-full border rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
-                    />
-                    <p className="text-[10px] text-gray-400 mt-2 italic">Standard is 5. Maximum is 100.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-[10px]">Penalty per Wrong Answer</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={penalty}
-                      onChange={(e) => setPenalty(parseInt(e.target.value) || 0)}
-                      className="w-full border rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
-                    />
-                    <p className="text-[10px] text-gray-400 mt-2 italic">Standard is 1. Penalty is deducted from current progress.</p>
-                  </div>
-                </div>
+            {selectedTopicIds.length > 1 && (
+              <div className="mt-4 flex flex-col gap-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={mixedMode}
+                    onChange={() => setMixedMode(true)}
+                    className="accent-dm-blue"
+                  />
+                  Mix all skills into one problem set
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={!mixedMode}
+                    onChange={() => setMixedMode(false)}
+                    className="accent-dm-blue"
+                  />
+                  Require completion of each skill separately
+                </label>
               </div>
-            </section>
-          )}
+            )}
+          </div>
 
-          <div className="flex justify-end pt-4">
+          {/* Settings */}
+          <div className="px-6 py-5 border-b border-dm-border">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  {mixedMode ? "Problems Required" : "Required Per Skill"}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={requiredCorrect}
+                  onChange={(e) => setRequiredCorrect(parseInt(e.target.value) || 0)}
+                  className="w-full border border-dm-border rounded px-3 py-2 text-sm focus:border-dm-blue focus:ring-1 focus:ring-dm-blue outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Number of correct answers to reach 100%.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Penalty for Incorrect
+                </label>
+                <select
+                  value={penalty}
+                  onChange={(e) => setPenalty(parseInt(e.target.value))}
+                  className="w-full border border-dm-border rounded px-3 py-2 text-sm bg-white focus:border-dm-blue focus:ring-1 focus:ring-dm-blue outline-none"
+                >
+                  {[0, 1, 2, 3].map((n) => (
+                    <option key={n} value={n}>
+                      {n === 0 ? "No penalty" : `${n} problem${n > 1 ? "s" : ""}`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Progress deducted per wrong answer.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full border border-dm-border rounded px-3 py-2 text-sm focus:border-dm-blue focus:ring-1 focus:ring-dm-blue outline-none"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3 rounded-b">
+            <button
+              type="button"
+              onClick={() => router.push("/teacher")}
+              className="px-4 py-2 text-sm font-semibold text-gray-600 border border-dm-border rounded bg-white hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
               disabled={isSubmitting || selectedTopicIds.length === 0 || !dueDate}
-              className="bg-indigo-600 text-white px-12 py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 disabled:opacity-50 shadow-xl transition-all active:scale-95"
+              className="bg-dm-blue hover:bg-dm-blue-dark text-white px-6 py-2 rounded text-sm font-semibold transition-colors disabled:opacity-50"
             >
-              {isSubmitting ? "Posting..." : "Post Assignment"}
+              {isSubmitting ? "Creating..." : "Create Assignment"}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      </form>
+
+      {/* Skill picker modal */}
+      {showSkillModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 pt-16 z-50">
+          <div className="bg-white rounded shadow-2xl w-full max-w-2xl flex flex-col max-h-[80vh]">
+            <div className="px-5 py-4 border-b border-dm-border flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-800">Add Skills</h3>
+              <button
+                type="button"
+                onClick={() => setShowSkillModal(false)}
+                className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-3 border-b border-dm-border">
+              <input
+                autoFocus
+                type="text"
+                value={skillSearch}
+                onChange={(e) => setSkillSearch(e.target.value)}
+                placeholder="Search skills..."
+                className="w-full border border-dm-border rounded px-3 py-2 text-sm focus:border-dm-blue focus:ring-1 focus:ring-dm-blue outline-none"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {filteredTopics.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-8">
+                  No skills match your search.
+                </p>
+              ) : (
+                <AccordionTopicList
+                  topics={filteredTopics}
+                  mode="teacher"
+                  selectedTopicIds={selectedTopicIds}
+                  onToggle={handleToggleTopic}
+                  forceOpen={skillSearch.trim().length > 0}
+                />
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-dm-border flex items-center justify-between bg-gray-50 rounded-b">
+              <span className="text-sm text-gray-500">
+                {selectedTopicIds.length} skill{selectedTopicIds.length !== 1 ? "s" : ""} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowSkillModal(false)}
+                className="bg-dm-blue hover:bg-dm-blue-dark text-white px-5 py-2 rounded text-sm font-semibold transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </AppShell>
   );
 }
 

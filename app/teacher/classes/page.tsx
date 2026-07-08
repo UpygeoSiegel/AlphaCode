@@ -3,11 +3,10 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { getTeacherClasses, createClass } from "@/services/classesService";
+import { getTeacherClasses, createClass, archiveClass, unarchiveClass, deleteClass } from "@/services/classesService";
 import { getAssignmentsByClass } from "@/services/assignmentsService";
 import type { ClassDoc, Assignment } from "@/types";
+import AppShell from "@/components/shared/AppShell";
 import Link from "next/link";
 
 export default function TeacherClassesPage() {
@@ -18,6 +17,9 @@ export default function TeacherClassesPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newClassName, setNewClassName] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/auth/login");
@@ -29,12 +31,12 @@ export default function TeacherClassesPage() {
     try {
       const classesData = await getTeacherClasses(user.uid);
       setClasses(classesData);
-
       const assignmentsMap: Record<string, Assignment[]> = {};
-      await Promise.all(classesData.map(async (cls) => {
-        const asgns = await getAssignmentsByClass(cls.id);
-        assignmentsMap[cls.id] = asgns;
-      }));
+      await Promise.all(
+        classesData.map(async (cls) => {
+          assignmentsMap[cls.id] = await getAssignmentsByClass(cls.id);
+        })
+      );
       setAssignmentsByClass(assignmentsMap);
     } catch (err) {
       console.error("Error loading data:", err);
@@ -43,9 +45,7 @@ export default function TeacherClassesPage() {
     }
   }
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
+  useEffect(() => { loadData(); }, [user]);
 
   async function handleCreateClass(e: React.FormEvent) {
     e.preventDefault();
@@ -61,130 +61,220 @@ export default function TeacherClassesPage() {
     }
   }
 
-  if (authLoading) return <div className="p-8">Loading...</div>;
+  async function handleArchive(cls: ClassDoc) {
+    try {
+      if ((cls as ClassDoc & { archived?: boolean }).archived) {
+        await unarchiveClass(cls.id);
+      } else {
+        await archiveClass(cls.id);
+      }
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.id === cls.id ? { ...c, archived: !(c as ClassDoc & { archived?: boolean }).archived } : c
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update class.");
+    }
+  }
+
+  async function handleDelete(cls: ClassDoc) {
+    if (!confirm(`Permanently delete "${cls.name}"? This cannot be undone.`)) return;
+    try {
+      await deleteClass(cls.id);
+      setClasses((prev) => prev.filter((c) => c.id !== cls.id));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete class.");
+    }
+  }
+
+  const activeClasses = classes.filter((c) => !(c as ClassDoc & { archived?: boolean }).archived);
+  const archivedClasses = classes.filter((c) => (c as ClassDoc & { archived?: boolean }).archived);
+  const visibleClasses = showArchived ? archivedClasses : activeClasses;
+
+  if (authLoading) return <div className="p-8 text-gray-500">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
-        <div className="flex items-center gap-8">
-          <h1 className="text-xl font-black text-indigo-700 uppercase tracking-tighter">Teacher Portal</h1>
-          <nav className="flex gap-6">
-            <Link href="/teacher" className="text-sm font-bold text-gray-500 hover:text-gray-900 pb-1">Dashboard</Link>
-            <Link href="/teacher/classes" className="text-sm font-bold text-gray-900 border-b-2 border-indigo-600 pb-1">Classes</Link>
-            <Link href="/teacher/assignments" className="text-sm font-bold text-gray-500 hover:text-gray-900 pb-1">All Assignments</Link>
-          </nav>
+    <AppShell
+      role="teacher"
+      userEmail={user?.email}
+      title="Classes"
+      headerActions={
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="gradient-brand text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:opacity-90 shadow-md shadow-indigo-500/20"
+        >
+          + Add New Class
+        </button>
+      }
+    >
+      {/* Tab toggle */}
+      {archivedClasses.length > 0 && (
+        <div className="flex gap-2 mb-4">
+          {[false, true].map((archived) => (
+            <button
+              key={String(archived)}
+              onClick={() => setShowArchived(archived)}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                showArchived === archived
+                  ? "gradient-brand text-white shadow-sm"
+                  : "bg-white border border-dm-border text-gray-500 hover:border-dm-blue hover:text-dm-blue"
+              }`}
+            >
+              {archived ? `Archived (${archivedClasses.length})` : `Active (${activeClasses.length})`}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/teacher/assignments/new"
-            className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-black text-sm hover:bg-indigo-700 transition-all shadow-md active:scale-95 flex items-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            Create Assignment
-          </Link>
-          <div className="h-8 w-[1px] bg-gray-200 mx-2" />
-          <span className="text-xs font-medium text-gray-500">{user?.email}</span>
-          <button
-            onClick={() => signOut(auth)}
-            className="text-xs font-bold text-gray-400 hover:text-red-600 transition-colors"
-          >
-            Sign Out
-          </button>
-        </div>
-      </header>
+      )}
 
-      <main className="p-8 max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Your Classes</h2>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black text-xs hover:bg-indigo-700 transition-all shadow-md active:scale-95"
-          >
-            + Create New Class
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-12 text-gray-400 font-medium">Loading classes...</div>
-        ) : classes.length === 0 ? (
-          <div className="bg-white border-2 border-dashed rounded-3xl p-12 text-center">
-            <p className="text-gray-500 mb-4 font-medium">No classes created yet.</p>
+      {loading ? (
+        <div className="text-center py-12 text-gray-400">Loading classes...</div>
+      ) : visibleClasses.length === 0 ? (
+        <div className="bg-white border border-dm-border rounded-2xl p-12 text-center">
+          <p className="text-gray-500 mb-4">
+            {showArchived ? "No archived classes." : "No classes created yet."}
+          </p>
+          {!showArchived && (
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-indigo-50 text-indigo-700 px-6 py-2 rounded-xl font-bold"
+              className="gradient-brand text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90"
             >
               Create your first class
             </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {classes.map((cls) => (
-              <div key={cls.id} className="bg-white border rounded-3xl shadow-sm hover:shadow-md transition-shadow flex flex-col overflow-hidden group">
-                <div className="bg-indigo-50 p-6 border-b group-hover:bg-indigo-100 transition-colors">
-                  <h3 className="text-lg font-black text-gray-900 leading-tight">{cls.name}</h3>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Code:</span>
-                    <span className="text-xs font-mono font-black text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">{cls.joinCode}</span>
-                  </div>
-                </div>
-                <div className="p-6 flex flex-col gap-4">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Students</div>
-                      <div className="text-xl font-black text-gray-900">{cls.studentIds.length}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Assignments</div>
-                      <div className="text-xl font-black text-gray-900">{assignmentsByClass[cls.id]?.length || 0}</div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 pt-2">
-                    <Link
-                      href={`/teacher/classes/${cls.id}`}
-                      className="text-center bg-gray-900 text-white py-2.5 rounded-xl text-xs font-black hover:bg-indigo-600 transition-all shadow-md active:scale-95"
-                    >
-                      Open Class Dashboard
+          )}
+        </div>
+      ) : (
+        <div className="bg-white border border-dm-border rounded-2xl shadow-card overflow-visible">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="border-b-2 border-dm-border bg-dm-bg">
+                <th className="px-4 py-3 font-semibold text-gray-700">Class Name</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 text-center">Class Code</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 text-center">Students</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 text-center">Assignments</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {visibleClasses.map((cls, i) => (
+                <tr
+                  key={cls.id}
+                  className={`border-b border-gray-100 hover:bg-dm-blue-light transition-colors ${
+                    i % 2 === 1 ? "bg-gray-50/50" : ""
+                  }`}
+                >
+                  <td className="px-4 py-3">
+                    <Link href={`/teacher/classes/${cls.id}`} className="text-dm-blue font-semibold hover:underline">
+                      {cls.name}
                     </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="font-mono font-bold text-gray-700 bg-gray-100 border border-dm-border px-2 py-0.5 rounded text-xs">
+                      {cls.joinCode}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center text-gray-700">{cls.studentIds.length}</td>
+                  <td className="px-4 py-3 text-center text-gray-700">
+                    {assignmentsByClass[cls.id]?.length || 0}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      {!(cls as ClassDoc & { archived?: boolean }).archived && (
+                        <Link
+                          href={`/teacher/assignments/new?classId=${cls.id}`}
+                          className="text-xs font-semibold text-dm-blue hover:underline"
+                        >
+                          + Assign
+                        </Link>
+                      )}
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            if (openMenuId === cls.id) {
+                              setOpenMenuId(null);
+                              setMenuPos(null);
+                            } else {
+                              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                              setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                              setOpenMenuId(cls.id);
+                            }
+                          }}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors text-lg leading-none"
+                        >
+                          ···
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Dropdown menu — fixed position to escape table overflow clipping */}
+      {openMenuId && menuPos && (() => {
+        const cls = classes.find((c) => c.id === openMenuId)!;
+        return (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => { setOpenMenuId(null); setMenuPos(null); }} />
+            <div
+              className="fixed z-50 bg-white border border-dm-border rounded-xl shadow-card-hover w-36 overflow-hidden"
+              style={{ top: menuPos.top, right: menuPos.right }}
+            >
+              <button
+                onClick={() => { handleArchive(cls); setOpenMenuId(null); setMenuPos(null); }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-dm-bg transition-colors"
+              >
+                {(cls as ClassDoc & { archived?: boolean }).archived ? "Unarchive" : "Archive"}
+              </button>
+              <button
+                onClick={() => { handleDelete(cls); setOpenMenuId(null); setMenuPos(null); }}
+                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Create Class Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Create New Class</h3>
-            <form onSubmit={handleCreateClass} className="flex flex-col gap-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wider">Class Name</label>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-5 py-4 border-b border-dm-border flex items-center justify-between">
+              <h3 className="text-lg font-bold text-dm-navy">Add New Class</h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+            </div>
+            <form onSubmit={handleCreateClass}>
+              <div className="px-5 py-5">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Class Name</label>
                 <input
                   autoFocus
                   type="text"
                   value={newClassName}
                   onChange={(e) => setNewClassName(e.target.value)}
-                  placeholder="e.g. 1st Period Computer Science"
-                  className="w-full border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  placeholder="e.g. Period 1 - AP CSP"
+                  className="w-full border border-dm-border rounded-lg px-3 py-2 text-sm focus:border-dm-blue focus:ring-2 focus:ring-dm-blue/20 outline-none"
                   required
                 />
               </div>
-              <div className="flex gap-3 mt-2">
+              <div className="px-5 py-3 border-t border-dm-border bg-gray-50 flex justify-end gap-3 rounded-b">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-4 py-3 border rounded-xl font-bold text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 text-sm font-semibold text-gray-600 border border-dm-border rounded-lg bg-white hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!newClassName.trim()}
-                  className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow-lg active:scale-95 disabled:opacity-50"
+                  className="gradient-brand text-white px-5 py-2 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50"
                 >
                   Create Class
                 </button>
@@ -193,6 +283,6 @@ export default function TeacherClassesPage() {
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }

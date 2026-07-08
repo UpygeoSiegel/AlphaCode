@@ -7,7 +7,7 @@ import CodeRenderer from "../shared/CodeRenderer";
 interface ValidationFailure {
   index: number;
   issues: string[];
-  failedData?: Question & { explanation: any };
+  failedData?: Question & { explanation: unknown };
 }
 
 interface ValidationResult {
@@ -217,14 +217,6 @@ export default function PreviewPanel({ code }: { code: string }) {
         </div>
       </div>
 
-      {/* Validation badge */}
-      {validation && !error && (
-        <ValidationBadge 
-          validation={validation} 
-          selectedFailureIndex={selectedFailure?.index}
-          onSelectFailure={setSelectedFailure}
-        />
-      )}
 
       <div className="flex-grow overflow-y-auto pr-2 flex flex-col gap-6 pb-8">
         {error && (

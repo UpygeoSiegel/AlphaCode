@@ -12,15 +12,31 @@ import {
 import { db } from "@/lib/firebase";
 import type { Assignment, ClassDoc } from "@/types";
 
+function normalizeAssignment(id: string, data: Record<string, unknown>): Assignment {
+  const topicIds = Array.isArray(data.topicIds)
+    ? (data.topicIds as string[])
+    : typeof data.topicId === "string" && data.topicId
+    ? [data.topicId]
+    : [];
+  return {
+    ...(data as Omit<Assignment, "id">),
+    id,
+    topicIds,
+    mixedMode: Boolean(data.mixedMode),
+    requiredCorrect: Number(data.requiredCorrect) || 1,
+    penalty: Number(data.penalty) || 0,
+  } as Assignment;
+}
+
 export async function getAssignment(assignmentId: string): Promise<Assignment | null> {
   const snap = await getDoc(doc(db, "assignments", assignmentId));
-  return snap.exists() ? ({ id: snap.id, ...snap.data() } as Assignment) : null;
+  return snap.exists() ? normalizeAssignment(snap.id, snap.data()) : null;
 }
 
 export async function getAssignmentsByClass(classId: string): Promise<Assignment[]> {
   const q = query(collection(db, "assignments"), where("classId", "==", classId));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment));
+  return snap.docs.map((d) => normalizeAssignment(d.id, d.data()));
 }
 
 export async function getPostedAssignmentsForStudent(
@@ -35,7 +51,7 @@ export async function getPostedAssignmentsForStudent(
   );
   const snap = await getDocs(q);
   console.log("Raw snapshot size:", snap.size);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment));
+  return snap.docs.map((d) => normalizeAssignment(d.id, d.data()));
 }
 
 export async function createAssignment(

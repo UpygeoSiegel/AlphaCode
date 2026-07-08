@@ -122,7 +122,7 @@ function runValidation(code: string): ValidationResult {
 
 export default function TopicPreviewPage() {
   const { id } = useParams();
-  const topicId = Array.isArray(id) ? id[0] : id;
+  const topicId = decodeURIComponent(Array.isArray(id) ? id[0] : id);
 
   const [topic, setTopic] = useState<Topic | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);

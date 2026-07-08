@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getAssignment } from "@/services/assignmentsService";
@@ -8,7 +8,23 @@ import { getClass } from "@/services/classesService";
 import { getUsers } from "@/services/usersService";
 import { getProgressForAssignment } from "@/services/progressService";
 import type { Assignment, ClassDoc, UserDoc, StudentProgress } from "@/types";
+import AppShell from "@/components/shared/AppShell";
 import Link from "next/link";
+
+type SortKey = "first" | "last" | "grade" | "complete" | "problems" | "lastAction";
+
+interface Row {
+  uid: string;
+  first: string;
+  last: string;
+  email: string;
+  grade: number;
+  complete: number;
+  correct: number;
+  required: number;
+  problems: number;
+  lastAction: number;
+}
 
 export default function AssignmentGradesPage() {
   const { id } = useParams();
@@ -20,6 +36,8 @@ export default function AssignmentGradesPage() {
   const [students, setStudents] = useState<UserDoc[]>([]);
   const [progress, setProgress] = useState<StudentProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>("last");
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/auth/login");
@@ -41,7 +59,7 @@ export default function AssignmentGradesPage() {
 
         const [studentsData, progressData] = await Promise.all([
           getUsers(classDoc.studentIds),
-          getProgressForAssignment(asgnId)
+          getProgressForAssignment(asgnId),
         ]);
 
         setStudents(studentsData);
@@ -55,91 +73,219 @@ export default function AssignmentGradesPage() {
     loadData();
   }, [id, user]);
 
-  if (authLoading || loading) return <div className="p-8">Loading grades...</div>;
-  if (!assignment || !cls) return <div className="p-8">Assignment not found.</div>;
+  const rows: Row[] = useMemo(() => {
+    if (!assignment) return [];
+    const denom =
+      assignment.requiredCorrect *
+      (assignment.mixedMode ? 1 : Math.max(1, assignment.topicIds.length));
+
+    return students.map((student) => {
+      const progs = progress.filter((p) => p.userId === student.uid);
+      const correct = progs.reduce((acc, p) => acc + (Number(p.correctCount) || 0), 0);
+      const problems = progs.reduce(
+        (acc, p) => acc + (Number(p.questionsAnswered) || 0),
+        0
+      );
+      const allComplete =
+        progs.length > 0 &&
+        progs.every((p) => p.completed) &&
+        (assignment.mixedMode || progs.length >= assignment.topicIds.length);
+      const percent = Math.min(100, Math.round((correct / denom) * 100));
+      const lastAction = progs.reduce(
+        (acc, p) => Math.max(acc, p.lastActivityAt?.toMillis?.() || 0),
+        0
+      );
+
+      const parts = (student.displayName || student.email || "").trim().split(/\s+/);
+      const first = parts[0] || "";
+      const last = parts.slice(1).join(" ") || "";
+
+      return {
+        uid: student.uid,
+        first,
+        last,
+        email: student.email,
+        grade: percent,
+        complete: allComplete ? 100 : percent,
+        correct,
+        required: denom,
+        problems,
+        lastAction,
+      };
+    });
+  }, [students, progress, assignment]);
+
+  const sorted = useMemo(() => {
+    const copy = [...rows];
+    copy.sort((a, b) => {
+      const va = a[sortKey];
+      const vb = b[sortKey];
+      if (typeof va === "string" && typeof vb === "string") {
+        return va.localeCompare(vb) * sortDir;
+      }
+      return ((va as number) - (vb as number)) * sortDir;
+    });
+    return copy;
+  }, [rows, sortKey, sortDir]);
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === 1 ? -1 : 1));
+    else {
+      setSortKey(key);
+      setSortDir(1);
+    }
+  }
+
+  function gradeCellClass(percent: number, started: boolean) {
+    if (!started) return "bg-gray-50 text-gray-300";
+    if (percent >= 90) return "bg-dm-green-light text-green-700 font-extrabold";
+    if (percent >= 70) return "bg-dm-yellow-light text-yellow-700 font-bold";
+    return "bg-dm-red-light text-red-700 font-bold";
+  }
+
+  const classAvg =
+    rows.length > 0
+      ? Math.round(rows.reduce((acc, r) => acc + r.grade, 0) / rows.length)
+      : 0;
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-dm-bg flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 gradient-brand rounded-2xl flex items-center justify-center text-white font-bold text-xl mx-auto mb-4 animate-pulse">α</div>
+          <p className="text-gray-400 text-sm">Loading grades...</p>
+        </div>
+      </div>
+    );
+  }
+  if (!assignment || !cls) {
+    return <div className="p-8 text-gray-500">Assignment not found.</div>;
+  }
+
+  const header = (label: string, key: SortKey, align = "text-left") => (
+    <th
+      onClick={() => handleSort(key)}
+      className={`px-4 py-3 font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100 ${align}`}
+    >
+      {label}
+      {sortKey === key && (
+        <span className="ml-1 text-dm-blue">{sortDir === 1 ? "▲" : "▼"}</span>
+      )}
+    </th>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-8 py-4 shadow-sm">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href={`/teacher/classes/${cls.id}`} className="text-indigo-600 font-bold text-sm">&larr; Class View</Link>
-            <div>
-              <h1 className="text-xl font-black text-gray-900 uppercase tracking-tighter italic">{assignment.name}</h1>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mastery Goal: {assignment.requiredCorrect} Correct</p>
+    <AppShell
+      role="teacher"
+      userEmail={user?.email}
+      title={
+        <span>
+          {assignment.name}{" "}
+          <span className="text-sm font-normal text-gray-400">— {cls.name}</span>
+        </span>
+      }
+      headerActions={
+        <Link
+          href={`/teacher/classes/${cls.id}`}
+          className="text-sm font-semibold text-dm-blue hover:underline"
+        >
+          &laquo; Back to Class
+        </Link>
+      }
+    >
+      {/* Summary bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: "Class Average", value: `${classAvg}%`, icon: "📊", color: "text-dm-blue" },
+          { label: "Students", value: String(rows.length), icon: "👥", color: "text-dm-purple" },
+          {
+            label: "Completed",
+            value: `${rows.filter((r) => r.complete === 100).length} / ${rows.length}`,
+            icon: "✅",
+            color: "text-dm-green",
+          },
+          {
+            label: "Due Date",
+            value: assignment.dueDate.toDate().toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+            icon: "📅",
+            color: "text-dm-yellow",
+          },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="bg-white border border-dm-border rounded-2xl px-5 py-4 shadow-card"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">{stat.icon}</span>
+              <div className="text-xs text-gray-500 uppercase tracking-wide font-semibold">{stat.label}</div>
             </div>
+            <div className={`text-2xl font-extrabold ${stat.color}`}>{stat.value}</div>
           </div>
-        </div>
-      </header>
+        ))}
+      </div>
 
-      <main className="p-8 max-w-6xl mx-auto">
-        <div className="bg-white border rounded-3xl shadow-xl overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-900 text-white">
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Student Name</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Correct</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Incorrect</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Completion %</th>
+      <div className="bg-white border border-dm-border rounded-2xl shadow-card overflow-x-auto">
+        <table className="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr className="border-b-2 border-dm-border bg-dm-bg">
+              {header("First", "first")}
+              {header("Last", "last")}
+              {header("Grade %", "grade", "text-center")}
+              {header("Complete %", "complete", "text-center")}
+              {header("Problems", "problems", "text-center")}
+              {header("Last Action", "lastAction", "text-center")}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                  No students enrolled in this class.
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {students.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400 italic">No students enrolled in this class.</td>
+            ) : (
+              sorted.map((row, i) => (
+                <tr
+                  key={row.uid}
+                  className={`border-b border-gray-100 ${
+                    i % 2 === 1 ? "bg-gray-50/50" : ""
+                  }`}
+                >
+                  <td className="px-4 py-3 font-semibold text-gray-800">{row.first}</td>
+                  <td className="px-4 py-3 text-gray-700">{row.last}</td>
+                  <td
+                    className={`px-4 py-3 text-center font-bold ${gradeCellClass(
+                      row.grade,
+                      row.problems > 0
+                    )}`}
+                  >
+                    {row.problems > 0 ? `${row.grade}%` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-center text-gray-700">
+                    {row.problems > 0 ? `${row.complete}%` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-center text-gray-700">
+                    {row.correct} / {row.required}
+                    <span className="text-gray-400 text-xs ml-1">
+                      ({row.problems} attempted)
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center text-gray-500">
+                    {row.lastAction > 0
+                      ? new Date(row.lastAction).toLocaleString(undefined, {
+                          month: "numeric",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })
+                      : "—"}
+                  </td>
                 </tr>
-              ) : (
-                students.map(student => {
-                  const studentProg = progress.find(p => p.userId === student.uid);
-                  const percent = studentProg 
-                    ? Math.min(100, Math.round((studentProg.correctCount / assignment.requiredCorrect) * 100))
-                    : 0;
-
-                  return (
-                    <tr key={student.uid} className="hover:bg-indigo-50/30 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">{student.displayName}</div>
-                        <div className="text-[10px] text-gray-400 font-medium">{student.email}</div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="font-black text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-100">
-                          {studentProg?.correctCount || 0}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="font-black text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-100">
-                          {studentProg?.incorrectCount || 0}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {studentProg?.completed ? (
-                          <span className="text-[10px] font-black bg-green-600 text-white px-2 py-1 rounded uppercase">Complete</span>
-                        ) : percent > 0 ? (
-                          <span className="text-[10px] font-black bg-yellow-500 text-white px-2 py-1 rounded uppercase">In Progress</span>
-                        ) : (
-                          <span className="text-[10px] font-black bg-gray-200 text-gray-500 px-2 py-1 rounded uppercase">Not Started</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden border">
-                            <div 
-                              className={`h-full transition-all duration-1000 ${percent === 100 ? 'bg-green-500' : 'bg-indigo-600'}`}
-                              style={{ width: `${percent}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-black text-gray-900 w-8">{percent}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </main>
-    </div>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </AppShell>
   );
 }

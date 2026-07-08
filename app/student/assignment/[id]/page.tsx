@@ -74,6 +74,7 @@ export default function AssignmentSessionPage() {
   }, [id, user]);
 
   const startTopicSession = async (asgn: Assignment, topicId: string) => {
+    if (!user) return;
     setSessionLoading(true);
     setSelectedTopicId(topicId);
     try {
@@ -201,27 +202,36 @@ export default function AssignmentSessionPage() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400 font-bold italic">Loading assignment...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-dm-bg flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-12 h-12 gradient-brand rounded-2xl flex items-center justify-center text-white font-bold text-xl mx-auto mb-4 animate-pulse">α</div>
+        <p className="text-gray-400 text-sm">Loading assignment...</p>
+      </div>
+    </div>
+  );
   
   if (error) return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8">
-      <p className="text-red-500 font-bold mb-4">{error}</p>
-      <Link href="/student" className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold">Back to Dashboard</Link>
+    <div className="min-h-screen bg-dm-bg flex flex-col items-center justify-center p-8">
+      <div className="text-4xl mb-4">⚠️</div>
+      <p className="text-dm-red font-semibold mb-4">{error}</p>
+      <Link href="/student" className="gradient-brand text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-indigo-500/20">Back to Assignments</Link>
     </div>
   );
 
   // SELECTION SCREEN
   if (assignment && !assignment.mixedMode && !selectedTopicId) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-4xl mx-auto">
-          <header className="mb-12">
-            <Link href="/student" className="text-sm font-bold text-indigo-600 hover:underline">&larr; Back to Dashboard</Link>
-            <h1 className="text-4xl font-black text-gray-900 mt-2 uppercase tracking-tighter italic">{assignment.name}</h1>
-            <p className="text-gray-500 font-medium">Select a topic to begin practicing. You must master each one individually.</p>
-          </header>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="min-h-screen bg-dm-bg">
+        <header className="bg-white border-b border-dm-border px-8 py-4 shadow-sm">
+          <div className="max-w-3xl mx-auto">
+            <Link href="/student" className="text-sm font-semibold text-dm-blue hover:underline flex items-center gap-1 w-fit">← Back to Assignments</Link>
+            <h1 className="text-xl font-bold text-dm-navy mt-1">{assignment.name}</h1>
+          </div>
+        </header>
+        <main className="max-w-3xl mx-auto p-8">
+          <p className="text-sm text-gray-500 mb-4">Select a skill below. You must complete each skill to finish this assignment.</p>
+          <div className="bg-white border border-dm-border rounded-2xl shadow-card divide-y divide-gray-100 overflow-hidden">
             {topics.map(topic => {
               const prog = allTopicProgress[topic.id];
               const isCompleted = prog?.completed;
@@ -231,102 +241,129 @@ export default function AssignmentSessionPage() {
                 <button
                   key={topic.id}
                   onClick={() => startTopicSession(assignment, topic.id)}
-                  className="bg-white border-2 border-gray-100 rounded-3xl p-8 text-left hover:border-indigo-600 transition-all group shadow-sm hover:shadow-xl"
+                  className="w-full flex items-center justify-between gap-6 px-5 py-4 text-left hover:bg-dm-blue-light transition-all group"
                 >
-                  <div className="flex justify-between items-start mb-6">
-                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {isCompleted ? 'Mastered ✓' : 'In Progress'}
-                    </div>
-                    <div className="text-2xl font-black text-gray-900">{percent}%</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-dm-blue font-bold group-hover:underline">{topic.name}</div>
+                    <p className="text-xs text-gray-400 truncate">{topic.description}</p>
                   </div>
-                  <h3 className="text-xl font-black text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors">{topic.name}</h3>
-                  <p className="text-sm text-gray-400 mb-8 line-clamp-2">{topic.description}</p>
-                  
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full transition-all duration-1000 ${isCompleted ? 'bg-green-500' : 'bg-indigo-600'}`} style={{ width: `${percent}%` }} />
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="w-40 h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`h-full transition-all ${isCompleted ? 'bg-dm-green' : 'bg-dm-blue'}`} style={{ width: `${percent}%` }} />
+                    </div>
+                    <span className={`text-sm font-bold w-12 text-right ${isCompleted ? 'text-dm-green' : 'text-gray-700'}`}>
+                      {isCompleted ? '100%' : `${percent}%`}
+                    </span>
                   </div>
                 </button>
               );
             })}
           </div>
-        </div>
+        </main>
       </div>
     );
   }
 
-  if (sessionLoading) return <div className="min-h-screen flex items-center justify-center text-gray-400 font-bold italic animate-pulse">Starting session...</div>;
+  if (sessionLoading) return (
+    <div className="min-h-screen bg-dm-bg flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-12 h-12 gradient-brand rounded-2xl flex items-center justify-center text-white font-bold text-xl mx-auto mb-4 animate-pulse">α</div>
+        <p className="text-gray-400 text-sm">Starting session...</p>
+      </div>
+    </div>
+  );
 
-  const percent = progress ? Math.min(100, Math.round((progress.correctCount / (assignment?.requiredCorrect || 1)) * 100)) : 0;
+  const required = assignment?.requiredCorrect || 1;
+  const correctCount = Number(progress?.correctCount) || 0;
+  const percent = progress ? Math.min(100, Math.round((correctCount / required) * 100)) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 md:p-8">
-      {/* Session Header */}
-      <div className="w-full max-w-2xl flex justify-between items-end mb-8">
-        <div>
-          <button 
-            onClick={() => {
-              if (assignment?.mixedMode) router.push("/student");
-              else setSelectedTopicId(null);
-            }} 
-            className="text-xs font-black text-indigo-600 uppercase tracking-widest hover:underline"
-          >
-            &larr; {assignment?.mixedMode ? "Quit Session" : "Back to Topics"}
-          </button>
-          <h1 className="text-2xl font-black text-gray-900 mt-1 uppercase tracking-tighter italic">
-            {assignment?.mixedMode ? assignment.name : topics.find(t => t.id === selectedTopicId)?.name}
-          </h1>
+    <div className="min-h-screen bg-dm-bg">
+      {/* Top bar */}
+      <header className="bg-white border-b border-dm-border px-4 md:px-8 py-3 shadow-sm">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="min-w-0">
+            <button 
+              onClick={() => {
+                if (assignment?.mixedMode) router.push("/student");
+                else setSelectedTopicId(null);
+              }} 
+              className="text-xs font-semibold text-dm-blue hover:underline flex items-center gap-1"
+            >
+              ← {assignment?.mixedMode ? "Back to Assignments" : "Back to Skills"}
+            </button>
+            <h1 className="text-lg font-semibold text-gray-800 truncate">
+              {assignment?.mixedMode ? assignment.name : topics.find(t => t.id === selectedTopicId)?.name}
+            </h1>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-right">
+              <div className="text-xl font-extrabold gradient-brand-text leading-none">{correctCount} / {required}</div>
+              <div className="text-[11px] text-gray-400 mt-0.5">{percent}% complete</div>
+            </div>
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-3xl font-black text-indigo-700 leading-none">{percent}%</div>
-          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mastery</div>
-        </div>
-      </div>
+      </header>
 
-      {/* Mastery Progress Bar */}
-      <div className="w-full max-w-2xl h-4 bg-white border rounded-full mb-12 relative overflow-hidden shadow-inner">
-        <div 
-          className="h-full bg-indigo-600 rounded-full transition-all duration-1000 ease-out" 
-          style={{ width: `${percent}%` }}
-        />
-        {Array.from({ length: (assignment?.requiredCorrect || 1) - 1 }).map((_, i) => (
-          <div key={i} className="absolute top-0 bottom-0 w-px bg-gray-100" style={{ left: `${((i + 1) / (assignment?.requiredCorrect || 1)) * 100}%` }} />
-        ))}
-      </div>
-
-      {progress?.completed ? (
-        <div className="w-full max-w-2xl bg-white border rounded-3xl p-12 text-center shadow-xl animate-in zoom-in-95 duration-500">
-          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✓</div>
-          <h2 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tighter">Topic Mastered!</h2>
-          <p className="text-gray-500 mb-8 font-medium text-lg">You have successfully achieved mastery in this section.</p>
-          <button 
-            onClick={() => {
-              if (assignment?.mixedMode) router.push("/student");
-              else {
-                setSelectedTopicId(null);
-                // Refresh list progress
-                window.location.reload(); 
-              }
-            }}
-            className="inline-block bg-indigo-600 text-white px-12 py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95"
-          >
-            {assignment?.mixedMode ? "Return to Dashboard" : "Choose Another Topic"}
-          </button>
+      <main className="max-w-3xl mx-auto p-4 md:p-8 flex flex-col items-center">
+        {/* Segmented progress bar */}
+        <div className="w-full mb-6">
+          <div className="flex gap-1">
+            {Array.from({ length: required }).map((_, i) => (
+              <div
+                key={i}
+                className={`h-3.5 flex-1 rounded-full transition-all ${
+                  i < correctCount
+                    ? "bg-dm-green shadow-sm shadow-green-500/30"
+                    : "bg-gray-200"
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex justify-between mt-1.5">
+            <span className="text-[10px] text-gray-400">{correctCount} correct</span>
+            <span className="text-[10px] text-gray-400">{required} needed</span>
+          </div>
         </div>
-      ) : currentQuestion && (
-        <QuestionCard 
-          key={`${currentQuestion.prompt.substring(0, 20)}-${currentQuestion.index}`}
-          question={currentQuestion} 
-          onNext={handleNext}
-          onAnswer={handleAnswerSubmit}
-        />
-      )}
-      
-      {!progress?.completed && assignment && assignment.penalty > 0 && (
-        <p className="mt-8 text-[10px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1">
-          <span className="w-4 h-4 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-[8px]">!</span>
-          Warning: -{assignment.penalty} points for incorrect answers
-        </p>
-      )}
+
+        {progress?.completed ? (
+          <div className="w-full bg-white border border-dm-border rounded shadow-sm p-12 text-center">
+            <div className="text-6xl mb-4">🎉</div>
+            <div className="w-16 h-16 bg-dm-green-light rounded-2xl flex items-center justify-center text-3xl mx-auto mb-5">✓</div>
+            <h2 className="text-2xl font-extrabold text-dm-navy mb-2">
+              {assignment?.mixedMode ? "Assignment Complete!" : "Skill Mastered!"}
+            </h2>
+            <p className="text-gray-500 mb-6">You answered {required} problems correctly. Outstanding work!</p>
+            <button 
+              onClick={() => {
+                if (assignment?.mixedMode) router.push("/student");
+                else {
+                  setSelectedTopicId(null);
+                  window.location.reload(); 
+                }
+              }}
+              className="gradient-brand text-white px-8 py-3 rounded-xl text-sm font-bold transition-all hover:opacity-90 shadow-lg shadow-indigo-500/30"
+            >
+              {assignment?.mixedMode ? "Back to Assignments" : "Choose Another Skill"}
+            </button>
+          </div>
+        ) : currentQuestion && (
+          <QuestionCard 
+            key={`${currentQuestion.prompt.substring(0, 20)}-${currentQuestion.index}`}
+            question={currentQuestion} 
+            onNext={handleNext}
+            onAnswer={handleAnswerSubmit}
+          />
+        )}
+        
+        {!progress?.completed && assignment && assignment.penalty > 0 && (
+          <div className="mt-6 px-4 py-3 bg-dm-red-light border border-dm-red/30 rounded-xl">
+            <p className="text-sm text-red-700 font-medium">
+              ⚠️ Penalty: {assignment.penalty} problem{assignment.penalty > 1 ? "s" : ""} deducted per wrong answer.
+            </p>
+          </div>
+        )}
+      </main>
     </div>
   );
 }

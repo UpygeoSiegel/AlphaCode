@@ -16,7 +16,6 @@ export default function QuestionCard({ question, onNext, onAnswer, isLast }: Que
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
 
-  // Combine and shuffle answers - memoized so it only reshuffles when the question identity changes
   const allChoices = useMemo(() => {
     if (question.type !== "multiple-choice") return [];
     const distractors = Array.isArray(question.distractors) ? question.distractors : [];
@@ -41,36 +40,41 @@ export default function QuestionCard({ question, onNext, onAnswer, isLast }: Que
     onNext();
   };
 
-  return (
-    <div className="w-full max-w-2xl bg-white border rounded-2xl shadow-sm overflow-hidden transition-all">
-      {/* Question Header */}
-      <div className="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
-        <span className="text-sm font-bold uppercase tracking-widest">Question</span>
-        <span className="text-xs bg-indigo-500 px-2 py-1 rounded-full uppercase font-black">{question.type}</span>
-      </div>
+  const choiceLabels = ["A", "B", "C", "D"];
 
-      <div className="p-8">
+  return (
+    <div className="w-full max-w-3xl bg-white border border-dm-border rounded-2xl shadow-card overflow-hidden">
+      <div className="p-6 md:p-8">
         {/* Prompt */}
-        <div className="text-xl font-medium mb-8">
+        <div className="text-base md:text-lg text-gray-800 mb-7 leading-relaxed font-medium">
           <CodeRenderer html={question.prompt} />
         </div>
 
         {/* Answer Area */}
-        <div className="mb-8">
+        <div className="mb-6">
           {question.type === "multiple-choice" ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {allChoices.map((choice, i) => {
-                let stateClasses = "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50";
+                let containerClass = "border-dm-border bg-white hover:border-dm-blue hover:bg-dm-blue-light";
+                let labelClass = "bg-gray-100 text-gray-600";
+                let icon = null;
+
                 if (isSubmitted) {
                   if (choice === question.answer) {
-                    stateClasses = "border-green-500 bg-green-50 text-green-800 ring-1 ring-green-500";
+                    containerClass = "border-dm-green bg-dm-green-light";
+                    labelClass = "bg-dm-green text-white";
+                    icon = <span className="text-dm-green font-bold text-lg">✓</span>;
                   } else if (choice === selectedAnswer) {
-                    stateClasses = "border-red-500 bg-red-50 text-red-800 ring-1 ring-red-500";
+                    containerClass = "border-dm-red bg-dm-red-light";
+                    labelClass = "bg-dm-red text-white";
+                    icon = <span className="text-dm-red font-bold text-lg">✕</span>;
                   } else {
-                    stateClasses = "border-gray-100 opacity-50";
+                    containerClass = "border-gray-100 bg-gray-50 opacity-50";
+                    labelClass = "bg-gray-200 text-gray-400";
                   }
                 } else if (choice === selectedAnswer) {
-                  stateClasses = "border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600";
+                  containerClass = "border-dm-blue bg-dm-blue-light shadow-sm shadow-indigo-200";
+                  labelClass = "bg-dm-blue text-white";
                 }
 
                 return (
@@ -78,98 +82,112 @@ export default function QuestionCard({ question, onNext, onAnswer, isLast }: Que
                     key={i}
                     disabled={isSubmitted}
                     onClick={() => setSelectedAnswer(choice)}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between group ${stateClasses}`}
+                    className={`w-full text-left px-4 py-3.5 flex items-center gap-3.5 transition-all rounded-xl border-2 disabled:cursor-default ${containerClass}`}
                   >
-                    <span className="font-medium">{choice}</span>
-                    {isSubmitted && choice === question.answer && (
-                      <span className="text-green-600 font-bold">✓</span>
-                    )}
-                    {isSubmitted && choice === selectedAnswer && choice !== question.answer && (
-                      <span className="text-red-600 font-bold">✕</span>
-                    )}
+                    <span
+                      className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${labelClass}`}
+                    >
+                      {choiceLabels[i]}
+                    </span>
+                    <span className="text-sm text-gray-800 flex-1 font-medium">{choice}</span>
+                    {icon && <span className="flex-shrink-0">{icon}</span>}
                   </button>
                 );
               })}
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Your Answer</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Your Answer:
+                </label>
                 <input
                   type="text"
                   autoFocus
                   disabled={isSubmitted}
                   value={selectedAnswer || ""}
                   onChange={(e) => setSelectedAnswer(e.target.value)}
-                  placeholder="Type your answer here..."
-                  className={`w-full p-4 rounded-xl border-2 outline-none transition-all font-bold text-lg ${
-                    isSubmitted 
-                      ? isCorrect 
-                        ? "border-green-500 bg-green-50 text-green-800" 
-                        : "border-red-500 bg-red-50 text-red-800"
-                      : "border-gray-100 focus:border-indigo-600 bg-gray-50"
+                  placeholder="Type your answer..."
+                  className={`w-full max-w-sm border-2 rounded-xl px-4 py-2.5 text-sm outline-none transition-all font-medium ${
+                    isSubmitted
+                      ? isCorrect
+                        ? "border-dm-green bg-dm-green-light text-green-800"
+                        : "border-dm-red bg-dm-red-light text-red-800"
+                      : "border-dm-border focus:border-dm-blue focus:ring-2 focus:ring-dm-blue/20"
                   }`}
                 />
               </div>
               {isSubmitted && !isCorrect && (
-                <div className="text-sm font-bold text-gray-500">
-                  Correct Answer: <span className="text-green-600">{question.answer}</span>
+                <div className="text-sm text-gray-600 flex items-center gap-2">
+                  <span className="text-gray-400">Correct answer:</span>
+                  <span className="font-bold text-dm-green bg-dm-green-light px-2 py-0.5 rounded-lg">{question.answer}</span>
                 </div>
               )}
             </form>
           )}
         </div>
 
-        {/* Action Button */}
+        {/* Action Area */}
         {!isSubmitted ? (
           <button
             onClick={() => handleSubmit()}
             disabled={!selectedAnswer || selectedAnswer.trim() === ""}
-            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-md active:scale-95"
+            className="gradient-brand text-white px-7 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 disabled:opacity-40 shadow-md shadow-indigo-500/20"
           >
             Submit Answer
           </button>
         ) : (
           <div className="space-y-4">
-            <div className={`p-4 rounded-xl font-bold text-center animate-in zoom-in-95 duration-200 ${isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-              {isCorrect ? 'Correct!' : 'Incorrect'}
+            <div
+              className={`px-4 py-3.5 rounded-xl border-2 text-sm font-bold flex items-center gap-2.5 ${
+                isCorrect
+                  ? "bg-dm-green-light border-dm-green text-green-800"
+                  : "bg-dm-red-light border-dm-red text-red-800"
+              }`}
+            >
+              <span className="text-xl">{isCorrect ? "🎉" : "😔"}</span>
+              {isCorrect ? "Correct! Great job!" : "That's not right. Keep going!"}
             </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowExplanation(!showExplanation)}
-                className="flex-1 border-2 border-gray-200 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all"
-              >
-                {showExplanation ? 'Hide Explanation' : 'Show Explanation'}
-              </button>
+
+            <div className="flex items-center gap-4">
               {!isLast && (
                 <button
                   onClick={handleNext}
-                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md active:scale-95"
+                  className="gradient-brand text-white px-7 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 shadow-md shadow-indigo-500/20"
                 >
-                  Next Question &rarr;
+                  Next Problem →
                 </button>
               )}
+              <button
+                onClick={() => setShowExplanation(!showExplanation)}
+                className="text-sm font-semibold text-dm-blue hover:underline flex items-center gap-1.5"
+              >
+                <span>{showExplanation ? "▲" : "▼"}</span>
+                {showExplanation ? "Hide Explanation" : "Show Explanation"}
+              </button>
             </div>
           </div>
         )}
 
         {/* Explanation Section */}
         {isSubmitted && showExplanation && (
-          <div className="mt-8 pt-8 border-t animate-in fade-in slide-in-from-top-4 duration-300">
-            <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Step-by-Step Explanation</h4>
-            <div className="space-y-4">
+          <div className="mt-6 pt-6 border-t-2 border-dm-border">
+            <h4 className="text-sm font-bold text-dm-navy mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 gradient-brand rounded-lg flex items-center justify-center text-white text-xs">💡</span>
+              Step-by-Step Explanation
+            </h4>
+            <ol className="space-y-3">
               {question.explanation.steps.map((step, i) => (
-                <div key={i} className="flex gap-4">
-                  <div className="flex-shrink-0 w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-sm">
+                <li key={i} className="flex gap-3 text-sm">
+                  <span className="flex-shrink-0 w-6 h-6 gradient-brand text-white rounded-full flex items-center justify-center font-bold text-xs mt-0.5">
                     {i + 1}
-                  </div>
-                  <p className="text-gray-600 pt-1 leading-relaxed">{step}</p>
-                </div>
+                  </span>
+                  <p className="text-gray-700 pt-0.5 leading-relaxed">{step}</p>
+                </li>
               ))}
-            </div>
-            <div className="mt-6 p-4 bg-indigo-50 rounded-xl italic text-indigo-800 font-medium">
-              {question.explanation.summary}
+            </ol>
+            <div className="mt-4 px-4 py-3.5 bg-dm-blue-light border-2 border-dm-blue/20 rounded-xl text-sm text-dm-navy font-medium italic">
+              💬 {question.explanation.summary}
             </div>
           </div>
         )}
