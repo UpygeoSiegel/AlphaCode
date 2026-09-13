@@ -6,7 +6,7 @@ import PreviewPanel from "./PreviewPanel";
 import { getTopics } from "@/services/topicsService";
 import { createTemplate, updateTemplate } from "@/services/templatesService";
 import { useAuth } from "@/hooks/useAuth";
-import type { Topic, Template } from "@/types";
+import type { Topic, Template, Level } from "@/types";
 import { useRouter } from "next/navigation";
 
 const DEFAULT_CODE = `// New Question Template
@@ -47,16 +47,20 @@ export default {
 
 interface TemplateSandboxProps {
   initialTemplate?: Template;
+  /** Pre-select a topic when creating a new template (e.g. from the dashboard). */
+  initialTopicId?: string;
+  initialLevel?: Level;
 }
 
-export default function TemplateSandbox({ initialTemplate }: TemplateSandboxProps) {
+export default function TemplateSandbox({ initialTemplate, initialTopicId, initialLevel }: TemplateSandboxProps) {
   const { user } = useAuth();
   const router = useRouter();
   const [code, setCode] = useState(initialTemplate?.code || DEFAULT_CODE);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [selectedTopicId, setSelectedTopicId] = useState(initialTemplate?.topicId || "");
+  const [selectedTopicId, setSelectedTopicId] = useState(initialTemplate?.topicId || initialTopicId || "");
   const [templateName, setTemplateName] = useState(initialTemplate?.name || "New Template");
   const [templateDesc, setTemplateDesc] = useState(initialTemplate?.description || "");
+  const [level, setLevel] = useState<Level>(initialTemplate?.level ?? initialLevel ?? 1);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -64,10 +68,12 @@ export default function TemplateSandbox({ initialTemplate }: TemplateSandboxProp
     async function loadTopics() {
       const data = await getTopics();
       setTopics(data);
-      if (!initialTemplate && data.length > 0) setSelectedTopicId(data[0].id);
+      if (!initialTemplate && !initialTopicId && data.length > 0) setSelectedTopicId(data[0].id);
     }
     loadTopics();
-  }, [initialTemplate]);
+  }, [initialTemplate, initialTopicId]);
+
+  const selectedTopic = topics.find((t) => t.id === selectedTopicId);
 
   const handleSave = async () => {
     if (!user) return;
@@ -86,6 +92,7 @@ export default function TemplateSandbox({ initialTemplate }: TemplateSandboxProp
           name: templateName,
           description: templateDesc,
           topicId: selectedTopicId,
+          level,
           code: code,
         });
         setMessage({ type: 'success', text: 'Template updated successfully!' });
@@ -95,6 +102,7 @@ export default function TemplateSandbox({ initialTemplate }: TemplateSandboxProp
           name: templateName,
           description: templateDesc,
           topicId: selectedTopicId,
+          level,
           code: code,
           createdBy: user.uid,
           tier: "official",
@@ -114,7 +122,7 @@ export default function TemplateSandbox({ initialTemplate }: TemplateSandboxProp
   return (
     <div className="flex flex-col gap-8">
       {/* Metadata Bar */}
-      <div className="bg-white border rounded-xl p-6 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="bg-white border rounded-xl p-6 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-6">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">Template Name</label>
           <input 
@@ -134,9 +142,26 @@ export default function TemplateSandbox({ initialTemplate }: TemplateSandboxProp
           >
             {topics.length === 0 && <option value="">No topics available</option>}
             {topics.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+              <option key={t.id} value={t.id}>
+                {t.unitName ? `${t.courseName} › ${t.unitName} › ${t.name}` : t.name}
+              </option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Level</label>
+          <select
+            value={level}
+            onChange={(e) => setLevel(Number(e.target.value) as Level)}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+          >
+            <option value={1}>Level I</option>
+            <option value={2}>Level II</option>
+            <option value={3}>Level III</option>
+          </select>
+          {selectedTopic?.levelDescriptions && (
+            <p className="mt-1 text-xs text-gray-500">{selectedTopic.levelDescriptions[level - 1]}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>

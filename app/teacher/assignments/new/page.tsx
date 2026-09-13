@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getTeacherClasses } from "@/services/classesService";
 import { createAssignment } from "@/services/assignmentsService";
-import type { ClassDoc } from "@/types";
+import type { ClassDoc, Topic, Level } from "@/types";
+import { LEVEL_LABEL } from "@/components/shared/TopicPath";
 import TopicBrowser from "@/components/teacher/TopicBrowser";
 import Link from "next/link";
 import { Timestamp } from "firebase/firestore";
@@ -18,7 +19,20 @@ function NewAssignmentContent() {
 
   const [classes, setClasses] = useState<ClassDoc[]>([]);
   const [selectedClassId, setSelectedClassId] = useState(initialClassId);
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
+  const [name, setName] = useState("");
+  const [nameEdited, setNameEdited] = useState(false);
+
+  const defaultName = selectedTopic
+    ? `${selectedTopic.name}${selectedLevel ? ` · ${LEVEL_LABEL[selectedLevel]}` : ""}`
+    : "";
+  const assignmentName = nameEdited ? name : defaultName;
+
+  const handleSelectTopic = (topic: Topic) => {
+    setSelectedTopic(topic);
+    setSelectedLevel(null);
+  };
   const [requiredCorrect, setRequiredCorrect] = useState(5);
   const [penalty, setPenalty] = useState(1);
   const [dueDate, setDueDate] = useState("");
@@ -50,15 +64,19 @@ function NewAssignmentContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedClassId || !selectedTopicId || !dueDate) return;
+    if (!user || !selectedClassId || !selectedTopic || !selectedLevel || !dueDate) return;
 
     setIsSubmitting(true);
     try {
       await createAssignment({
-        name: classes.find(c => c.id === selectedClassId)?.name + " - Assignment",
+        name: assignmentName.trim() || defaultName,
         classId: selectedClassId,
         teacherId: user.uid,
-        topicId: selectedTopicId,
+        topicId: selectedTopic.id,
+        level: selectedLevel,
+        topicName: selectedTopic.name,
+        unitName: selectedTopic.unitName ?? "",
+        courseName: selectedTopic.courseName ?? "",
         requiredCorrect,
         penalty,
         dueDate: Timestamp.fromDate(new Date(dueDate)),
@@ -91,11 +109,13 @@ function NewAssignmentContent() {
           <section>
             <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
               <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
-              Select Topic
+              Select Topic &amp; Level
             </h2>
-            <TopicBrowser 
-              selectedTopicId={selectedTopicId} 
-              onSelect={setSelectedTopicId} 
+            <TopicBrowser
+              selectedTopicId={selectedTopic?.id ?? null}
+              selectedLevel={selectedLevel}
+              onSelectTopic={handleSelectTopic}
+              onSelectLevel={setSelectedLevel}
             />
           </section>
 
@@ -108,6 +128,17 @@ function NewAssignmentContent() {
               </h2>
               
               <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-[10px]">Assignment Name</label>
+                  <input
+                    type="text"
+                    value={assignmentName}
+                    onChange={(e) => { setName(e.target.value); setNameEdited(true); }}
+                    placeholder={selectedTopic ? defaultName : "Pick a topic first"}
+                    className="w-full border rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-[10px]">Assign to Class</label>
                   <select
@@ -181,7 +212,7 @@ function NewAssignmentContent() {
           <div className="flex justify-end pt-4">
             <button
               type="submit"
-              disabled={isSubmitting || !selectedTopicId || !dueDate}
+              disabled={isSubmitting || !selectedTopic || !selectedLevel || !dueDate}
               className="bg-indigo-600 text-white px-12 py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 disabled:opacity-50 shadow-xl transition-all active:scale-95"
             >
               {isSubmitting ? "Posting..." : "Post Assignment"}

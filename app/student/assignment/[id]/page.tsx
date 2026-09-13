@@ -7,14 +7,30 @@ import { getAssignment } from "@/services/assignmentsService";
 import { getProgress, initProgress, recordAnswer } from "@/services/progressService";
 import { getQuestionBank } from "@/services/questionBankService";
 import { getTemplatesByTopic } from "@/services/templatesService";
-import type { Assignment, Question, StudentProgress, Template } from "@/types";
+import TopicPath from "@/components/shared/TopicPath";
+import type { Assignment, Question, StudentProgress, Template, Level } from "@/types";
 import QuestionCard from "@/components/shared/QuestionCard";
 import Link from "next/link";
+
+/** Keep only templates at the assigned level; fall back to all if that level has none (legacy assignments). */
+function filterByLevel(templates: Template[], level: Level | undefined): Template[] {
+  if (!level) return templates;
+  const atLevel = templates.filter((t) => t.level === level);
+  return atLevel.length > 0 ? atLevel : templates;
+}
+
+/** Keep bank questions produced by the given templates. If narrowing empties the bank, keep it whole. */
+function filterBankByTemplates(bank: Question[], templates: Template[], allTemplates: Template[]): Question[] {
+  if (templates.length === allTemplates.length) return bank;
+  const ids = new Set(templates.map((t) => t.id));
+  const narrowed = bank.filter((q) => ids.has(q.templateId));
+  return narrowed.length > 0 ? narrowed : bank;
+}
 
 export default function AssignmentSessionPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [progress, setProgress] = useState<StudentProgress | null>(null);
@@ -47,12 +63,13 @@ export default function AssignmentSessionPage() {
         }
         setProgress(prog);
 
-        // Load templates for live generation (fallback if bank empty)
-        const tmpls = await getTemplatesByTopic(asgn.topicId);
+        // Load templates, narrowed to the assigned level when that level has any
+        const allTmpls = await getTemplatesByTopic(asgn.topicId);
+        const tmpls = filterByLevel(allTmpls, asgn.level);
         setTemplates(tmpls);
 
-        // Try to load question bank
-        const bank = await getQuestionBank(asgn.topicId);
+        // Try to load question bank (only questions from the level's templates)
+        const bank = filterBankByTemplates(await getQuestionBank(asgn.topicId), tmpls, allTmpls);
         if (bank.length > 0) {
           // Pick a random one from bank
           setCurrentQuestion(bank[Math.floor(Math.random() * bank.length)]);
@@ -104,7 +121,7 @@ export default function AssignmentSessionPage() {
     }
 
     // Load next question
-    const bank = await getQuestionBank(assignment.topicId);
+    const bank = filterBankByTemplates(await getQuestionBank(assignment.topicId), templates, templates);
     if (bank.length > 0) {
       setCurrentQuestion(bank[Math.floor(Math.random() * bank.length)]);
     } else {
@@ -154,7 +171,10 @@ export default function AssignmentSessionPage() {
       <div className="w-full max-w-2xl flex justify-between items-end mb-8">
         <div>
           <Link href="/student" className="text-xs font-black text-indigo-600 uppercase tracking-widest hover:underline">&larr; Quit Session</Link>
-          <h1 className="text-2xl font-black text-gray-900 mt-1 uppercase tracking-tighter italic">Practice Mode</h1>
+          <h1 className="text-2xl font-black text-gray-900 mt-1 uppercase tracking-tighter italic">
+            {assignment?.topicName ?? assignment?.name ?? "Practice Mode"}
+          </h1>
+          <TopicPath courseName={assignment?.courseName} unitName={assignment?.unitName} level={assignment?.level} className="mt-1" />
         </div>
         <div className="text-right">
           <div className="text-3xl font-black text-indigo-700 leading-none">{percent}%</div>

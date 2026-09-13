@@ -1,0 +1,84 @@
+[debug] [2026-04-29T02:52:06.751Z] ----------------------------------------------------------------------
+[debug] [2026-04-29T02:52:06.753Z] Command:       /usr/local/bin/node /usr/local/bin/firebase init
+[debug] [2026-04-29T02:52:06.753Z] CLI Version:   15.15.0
+[debug] [2026-04-29T02:52:06.753Z] Platform:      darwin
+[debug] [2026-04-29T02:52:06.753Z] Node Version:  v22.14.0
+[debug] [2026-04-29T02:52:06.753Z] Time:          Tue Apr 28 2026 22:52:06 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-04-29T02:52:06.753Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-29T02:52:06.755Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  /Users/mariamartinez/Desktop/AlphaCode
+
+[debug] [2026-04-29T02:52:07.461Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-04-29T02:52:07.461Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
+[debug] [2026-04-29T02:52:39.466Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-29T02:52:39.466Z] > authorizing via signed-in user (siegel.benjamin1@gmail.com)
+[debug] [2026-04-29T02:52:39.469Z] Checked if tokens are valid: false, expires at: 1775951980775
+[debug] [2026-04-29T02:52:39.470Z] Checked if tokens are valid: false, expires at: 1775951980775
+[debug] [2026-04-29T02:52:39.470Z] > refreshing access token with scopes: []
+[debug] [2026-04-29T02:52:39.471Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-04-29T02:52:39.472Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-29T02:52:39.623Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-04-29T02:52:39.623Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-29T02:52:39.646Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=100
+[debug] [2026-04-29T02:52:40.230Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-29T02:52:40.231Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[info] 
+=== Dataconnect Setup
+[info] i  dataconnect: ensuring required API firebasedataconnect.googleapis.com is enabled... 
+[debug] [2026-04-29T02:52:43.138Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:43.139Z] Checked if tokens are valid: true, expires at: 1777434758623
+[info] i  dataconnect: ensuring required API sqladmin.googleapis.com is enabled... 
+[debug] [2026-04-29T02:52:43.139Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:43.139Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:43.139Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/firebasedataconnect.googleapis.com [none]
+[debug] [2026-04-29T02:52:43.139Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/firebasedataconnect.googleapis.com  x-goog-user-project=alphacode-a355f
+[debug] [2026-04-29T02:52:43.141Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/sqladmin.googleapis.com [none]
+[debug] [2026-04-29T02:52:43.141Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/sqladmin.googleapis.com  x-goog-user-project=alphacode-a355f
+[debug] [2026-04-29T02:52:43.610Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/firebasedataconnect.googleapis.com 200
+[debug] [2026-04-29T02:52:43.610Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/firebasedataconnect.googleapis.com [omitted]
+[warn] ⚠  dataconnect: missing required API firebasedataconnect.googleapis.com. Enabling now... 
+[debug] [2026-04-29T02:52:43.612Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:43.612Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:43.612Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/firebasedataconnect.googleapis.com:enable [none]
+[debug] [2026-04-29T02:52:43.612Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/firebasedataconnect.googleapis.com:enable  x-goog-user-project=alphacode-a355f
+[debug] [2026-04-29T02:52:43.614Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/sqladmin.googleapis.com 200
+[debug] [2026-04-29T02:52:43.614Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/sqladmin.googleapis.com [omitted]
+[warn] ⚠  dataconnect: missing required API sqladmin.googleapis.com. Enabling now... 
+[debug] [2026-04-29T02:52:43.614Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:43.615Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:43.615Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/sqladmin.googleapis.com:enable [none]
+[debug] [2026-04-29T02:52:43.615Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/sqladmin.googleapis.com:enable  x-goog-user-project=alphacode-a355f
+[debug] [2026-04-29T02:52:44.214Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/sqladmin.googleapis.com:enable 200
+[debug] [2026-04-29T02:52:44.214Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/sqladmin.googleapis.com:enable [omitted]
+[debug] [2026-04-29T02:52:44.282Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/firebasedataconnect.googleapis.com:enable 200
+[debug] [2026-04-29T02:52:44.282Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/firebasedataconnect.googleapis.com:enable [omitted]
+[debug] [2026-04-29T02:52:54.296Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:54.297Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:52:54.297Z] >>> [apiv2][query] GET https://firebasedataconnect.googleapis.com/v1/projects/alphacode-a355f/locations/-/services [none]
+[debug] [2026-04-29T02:52:54.886Z] <<< [apiv2][status] GET https://firebasedataconnect.googleapis.com/v1/projects/alphacode-a355f/locations/-/services 200
+[debug] [2026-04-29T02:52:54.887Z] <<< [apiv2][body] GET https://firebasedataconnect.googleapis.com/v1/projects/alphacode-a355f/locations/-/services {}
+[info] i  Learn more about Gemini in Firebase and how it uses your data: https://firebase.google.com/docs/gemini-in-firebase#how-gemini-in-firebase-uses-your-data 
+[info] i  : ensuring required API cloudaicompanion.googleapis.com is enabled... 
+[debug] [2026-04-29T02:53:03.502Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:53:03.502Z] Checked if tokens are valid: true, expires at: 1777434758623
+[debug] [2026-04-29T02:53:03.502Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/cloudaicompanion.googleapis.com [none]
+[debug] [2026-04-29T02:53:03.502Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/cloudaicompanion.googleapis.com  x-goog-user-project=alphacode-a355f
+[debug] [2026-04-29T02:53:04.091Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/cloudaicompanion.googleapis.com 200
+[debug] [2026-04-29T02:53:04.091Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/alphacode-a355f/services/cloudaicompanion.googleapis.com [omitted]
+[info] ✔  : required API cloudaicompanion.googleapis.com is enabled 

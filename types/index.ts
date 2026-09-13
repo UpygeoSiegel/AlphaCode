@@ -10,11 +10,22 @@ export interface UserDoc {
   createdAt: Timestamp;
 }
 
+export type Level = 1 | 2 | 3;
+
 export interface Topic {
   id: string;
   name: string;
   description: string;
   tier: "official" | "community";
+  /** Curriculum placement. Present on seeded official topics; absent on ad-hoc/community topics. */
+  courseId?: string;
+  courseName?: string;
+  unitId?: string;
+  unitName?: string;
+  /** Sort position within the unit. */
+  order?: number;
+  /** One-line target for each difficulty level. Index 0 = Level I. */
+  levelDescriptions?: [string, string, string];
   createdBy: string;
   createdAt: Timestamp;
   published: boolean;
@@ -31,6 +42,8 @@ export interface Template {
   description: string;
   createdBy: string;
   tier: "official" | "community";
+  /** Difficulty level this template targets. */
+  level: Level;
   code: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -66,6 +79,12 @@ export interface Assignment {
   classId: string;
   teacherId: string;
   topicId: string;
+  /** Difficulty level assigned. Absent on assignments created before levels existed. */
+  level?: Level;
+  /** Denormalized from the topic at creation time so lists can render without extra reads. */
+  topicName?: string;
+  unitName?: string;
+  courseName?: string;
   requiredCorrect: number;
   penalty: number;
   dueDate: Timestamp;

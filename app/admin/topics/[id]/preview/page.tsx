@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { getTopic } from "@/services/topicsService";
 import { getTemplatesByTopic } from "@/services/templatesService";
 import type { Topic, Template, Question } from "@/types";
@@ -10,7 +10,6 @@ import Link from "next/link";
 
 export default function TopicPreviewPage() {
   const { id } = useParams();
-  const router = useRouter();
   const [topic, setTopic] = useState<Topic | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);

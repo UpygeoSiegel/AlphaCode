@@ -9,6 +9,7 @@ import { getUsers } from "@/services/usersService";
 import { getProgressForAssignment } from "@/services/progressService";
 import type { Assignment, ClassDoc, UserDoc, StudentProgress } from "@/types";
 import Link from "next/link";
+import TopicPath from "@/components/shared/TopicPath";
 
 export default function AssignmentGradesPage() {
   const { id } = useParams();
@@ -66,6 +67,7 @@ export default function AssignmentGradesPage() {
             <Link href={`/teacher/classes/${cls.id}`} className="text-indigo-600 font-bold text-sm">&larr; Class View</Link>
             <div>
               <h1 className="text-xl font-black text-gray-900 uppercase tracking-tighter italic">{assignment.name}</h1>
+              <TopicPath courseName={assignment.courseName} unitName={assignment.unitName} level={assignment.level} />
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mastery Goal: {assignment.requiredCorrect} Correct</p>
             </div>
           </div>

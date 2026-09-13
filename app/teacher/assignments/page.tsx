@@ -8,6 +8,7 @@ import { auth } from "@/lib/firebase";
 import { getClassesByTeacher, getAssignmentsByClass } from "@/services/assignmentsService";
 import type { Assignment, ClassDoc } from "@/types";
 import Link from "next/link";
+import TopicPath from "@/components/shared/TopicPath";
 
 export default function TeacherAssignmentsPage() {
   const { user, role, loading: authLoading } = useAuth();
@@ -97,6 +98,7 @@ export default function TeacherAssignmentsPage() {
               <thead>
                 <tr className="bg-gray-900 text-white">
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Assignment Name</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Topic</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Class</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Required</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Due Date</th>
@@ -108,6 +110,16 @@ export default function TeacherAssignmentsPage() {
                   <tr key={asgn.id} className="hover:bg-indigo-50/30 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">{asgn.name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {asgn.topicName ? (
+                        <>
+                          <div className="text-sm font-semibold text-gray-800">{asgn.topicName}</div>
+                          <TopicPath courseName={asgn.courseName} unitName={asgn.unitName} level={asgn.level} />
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Legacy topic</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-xs font-bold text-gray-500">

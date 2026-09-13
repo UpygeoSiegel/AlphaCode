@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { getClassesForStudent, getPostedAssignmentsForStudent } from "@/services/assignmentsService";
 import { getClassByJoinCode, addStudentToClass } from "@/services/classesService";
 import { getProgress } from "@/services/progressService";
 import type { Assignment, ClassDoc, StudentProgress } from "@/types";
 import Link from "next/link";
+import TopicPath from "@/components/shared/TopicPath";
 
 export default function StudentDashboard() {
   const { user, role, loading: authLoading } = useAuth();
@@ -196,7 +197,10 @@ export default function StudentDashboard() {
                           <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase tracking-wider mb-2 inline-block">
                             {classes.find(c => c.id === asgn.classId)?.name}
                           </span>
-                          <h3 className="text-xl font-black text-gray-900 group-hover:text-indigo-700 transition-colors">Practice Session</h3>
+                          <h3 className="text-xl font-black text-gray-900 group-hover:text-indigo-700 transition-colors">
+                            {asgn.topicName ?? asgn.name}
+                          </h3>
+                          <TopicPath courseName={asgn.courseName} unitName={asgn.unitName} level={asgn.level} className="mt-1" />
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-black text-gray-900">{percent}%</div>

@@ -19,6 +19,11 @@ export async function getTemplate(templateId: string): Promise<Template | null> 
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as Template) : null;
 }
 
+export async function getAllTemplates(): Promise<Template[]> {
+  const snap = await getDocs(collection(db, "templates"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Template));
+}
+
 export async function getTemplatesByTopic(topicId: string): Promise<Template[]> {
   const q = query(collection(db, "templates"), where("topicId", "==", topicId));
   const snap = await getDocs(q);

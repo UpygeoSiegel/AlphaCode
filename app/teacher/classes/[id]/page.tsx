@@ -9,6 +9,7 @@ import { getUsers } from "@/services/usersService";
 import { getProgressForAssignment } from "@/services/progressService";
 import type { ClassDoc, Assignment, UserDoc, StudentProgress } from "@/types";
 import Link from "next/link";
+import TopicPath from "@/components/shared/TopicPath";
 
 export default function ClassDetailsPage() {
   const { id } = useParams();
@@ -136,6 +137,7 @@ export default function ClassDetailsPage() {
                     <div className="flex justify-between items-start mb-6">
                       <div>
                         <h3 className="text-lg font-black text-gray-900 mb-1 group-hover:text-indigo-700 transition-colors">{asgn.name}</h3>
+                        <TopicPath courseName={asgn.courseName} unitName={asgn.unitName} level={asgn.level} className="mb-2" />
                         <p className="text-xs text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
                           Due: {asgn.dueDate.toDate().toLocaleDateString()}
                           <span className="text-gray-200">•</span>
