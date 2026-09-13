@@ -50,6 +50,18 @@ export async function createClass(teacherId: string, name: string): Promise<stri
   return ref.id;
 }
 
+export async function archiveClass(classId: string): Promise<void> {
+  await updateDoc(doc(db, "classes", classId), { archived: true });
+}
+
+export async function unarchiveClass(classId: string): Promise<void> {
+  await updateDoc(doc(db, "classes", classId), { archived: false });
+}
+
+export async function deleteClass(classId: string): Promise<void> {
+  await deleteDoc(doc(db, "classes", classId));
+}
+
 export async function addStudentToClass(classId: string, studentId: string): Promise<void> {
   const classRef = doc(db, "classes", classId);
   const classSnap = await getDoc(classRef);

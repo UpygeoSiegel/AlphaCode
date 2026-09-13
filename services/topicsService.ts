@@ -6,8 +6,6 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  query,
-  where,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -19,9 +17,10 @@ export async function getTopics(): Promise<Topic[]> {
 }
 
 export async function getPublishedTopics(): Promise<Topic[]> {
-  const q = query(collection(db, "topics"), where("published", "==", true));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Topic));
+  const snap = await getDocs(collection(db, "topics"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as Topic))
+    .filter((t) => t.published === true);
 }
 
 export async function getTopic(topicId: string): Promise<Topic | null> {

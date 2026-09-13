@@ -46,14 +46,18 @@ export async function recordAnswer(
   userId: string,
   assignmentId: string,
   entry: Omit<QuestionLogEntry, "answeredAt">,
-  requiredCorrect: number
+  requiredCorrect: number,
+  penalty: number = 0
 ): Promise<void> {
   const ref = doc(db, "studentProgress", userId, assignmentId, "data");
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
 
   const current = snap.data() as StudentProgress;
-  const newCorrect = current.correctCount + (entry.correct ? 1 : 0);
+  // A wrong answer deducts `penalty` from the correct count, never below 0.
+  const newCorrect = entry.correct
+    ? current.correctCount + 1
+    : Math.max(0, current.correctCount - penalty);
   const newIncorrect = current.incorrectCount + (entry.correct ? 0 : 1);
   const completed = newCorrect >= requiredCorrect;
 

@@ -1,12 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(NPM_CONFIG_CACHE=/tmp/npm-cache npm install *)",
-      "Bash(npx tsc *)",
-      "Bash(./node_modules/.bin/tsc --noEmit)",
-      "Bash(node *)",
-      "Bash(npm run *)",
-      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(p.get\\('bin',{}\\)\\)\")"
-    ]
+      "Bash(npm run build)",
+      "WebFetch(domain:www.deltamath.com)",
+      "WebFetch(domain:deltamath.com)",
+      "Bash(cat app/teacher/page.tsx)",
+      "Bash(cat /Users/benjaminsiegel/Desktop/AlphaCode/.next/static/css/*.css)",
+      "Bash(cat /Users/benjaminsiegel/Desktop/AlphaCode/.next/static/css/e8a4cd0c65ca542a.css)",
+      "Bash(lsof -i :3000)"
+    ],
+    "deny": [],
+    "ask": []
   }
 }

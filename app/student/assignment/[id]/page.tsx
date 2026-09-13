@@ -139,7 +139,7 @@ export default function AssignmentSessionPage() {
         questionIndex: currentQuestion.index,
         selectedAnswer,
         correct: isCorrect,
-      }, assignment.requiredCorrect);
+      }, assignment.requiredCorrect, assignment.penalty);
       
       // Update local progress state to show UI updates immediately
       if (progress) {
